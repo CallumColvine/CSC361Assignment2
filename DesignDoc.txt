@@ -1,0 +1,52 @@
+Design Questions
+
+1. How do you design and implement your RDP header and header fields? Do you use 
+any additional header fields?
+-----
+I am using an object with C++ to represent an RDP message. Inside the object 
+will be the header information. I am using:
+std::string for the Magic
+int for Type
+int for Sequence Number
+int for Acnowledgement Number
+int for Length
+int for Size
+The header should come out to 16 bytes in this format
+
+2. How do you design and implement the connection management using SYN, FIN and 
+RST packets? How to choose the initial sequence number?
+-----
+There will be an initial 2-way handshake where the client sends SYN and the 
+server responds with ACK. Same with FIN and RST. The sequence number will be 
+initialized as a random number between 0 and 2^16 - 1. 
+
+3. How do you design and implement the flow control using window size? How to 
+choose the initial window size and adjust the size? How to read and write the 
+file and how to manage the buffer at the sender and receiver side, respectively?
+-----
+Sender knows window size. Can be any size. File I/O.
+The sender will pick an arbitrary initial window size which is smaller than the 
+receiver's buffer, and must be smaller than 1024 bytes since this is the largest
+packet size possible. Flow control will be implemented by having the receiver 
+tell the sender how much room it has in its buffer in each ACK. The entire file 
+will be read at once at the sender side. The file will be appended to on the 
+receiver side once the order/integrity of packets has been established. File I/O
+will be done with fopen() and fread(). 
+
+4. How do you design and implement the error detection, notification and 
+recovery? How to use timer? How many timers do you use? How to respond to the 
+events at the sender and receiver side, respectively? How to ensure reliable 
+data transfer?
+-----
+Pseudocode in slides. Use as many timers as there are packets being waited on
+being ACK-ed. Table in slides. SEQ #
+There will be timers for every packet being waited on. If a timer expires before
+an ACK, the packet is re-sent. The sequence number will be analyzed to ensure
+packets are in the correct order. ACK will only be sent for the most recent 
+in-order packet received. The timer will be implemented with multithreading and 
+C++ 11's chrono library. 
+
+5. Any additional design and implementation considerations you want to get 
+feedback from your lab instructor?
+-----
+None so far!
