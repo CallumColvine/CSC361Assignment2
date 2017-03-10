@@ -1,0 +1,5 @@
+ToDo:
+
+1. Establish connection between sender and receiver
+- Client sends message to receiver, receiver replies to client
+2. Send the full RDP header through the connection

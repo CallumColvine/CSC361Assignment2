@@ -1,4 +1,6 @@
 Design Questions
+Callum Colvine 
+V99789488
 
 1. How do you design and implement your RDP header and header fields? Do you use 
 any additional header fields?
@@ -38,8 +40,6 @@ recovery? How to use timer? How many timers do you use? How to respond to the
 events at the sender and receiver side, respectively? How to ensure reliable 
 data transfer?
 -----
-Pseudocode in slides. Use as many timers as there are packets being waited on
-being ACK-ed. Table in slides. SEQ #
 There will be timers for every packet being waited on. If a timer expires before
 an ACK, the packet is re-sent. The sequence number will be analyzed to ensure
 packets are in the correct order. ACK will only be sent for the most recent 
@@ -49,4 +49,6 @@ C++ 11's chrono library.
 5. Any additional design and implementation considerations you want to get 
 feedback from your lab instructor?
 -----
-None so far!
+Is the intended/best way to implement timeout timers for packet ACKs to use
+multithreading and have each thread keep track of its own timer? Is it possible
+to use select() or something like it for this job? 
