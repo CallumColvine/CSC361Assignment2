@@ -2,12 +2,21 @@
 #define RDPMESSAGE_H
 
 #include <string>
+#include <cmath>
+
+#define DAT     00001
+#define ACK     00010
+#define SYN     00100
+#define FIN     01000
+#define RST     10000
 
 class RDPMessage
 {
   public:
   	std::string toString();
+    const char* toCString(char* wholeStr);
   	// Getters
+    int seqNumLen() { return _seqNumLen; }
   	std::string magic() { return _magic; }
   	int type(){ return _type; }
   	int seqNum(){ return _seqNum; }
@@ -16,7 +25,7 @@ class RDPMessage
   	int size(){ return _size; }
   	std::string message() { return _message; }
   	// Setters
-  	void setMagic(std::string magicIn) { _magic = magicIn; }
+  	// void setMagic(std::string magicIn) { _magic = magicIn; }
   	void setType(int typeIn) { _type = typeIn; }
   	void setSeqNum(int seqNumIn) { _seqNum = seqNumIn; }
   	void setAckNum(int ackNumIn) { _ackNum = ackNumIn; }
@@ -24,11 +33,12 @@ class RDPMessage
   	void setSize(int sizeIn) { _size = sizeIn; }
   	void setMessage(std::string messageIn) { _message = messageIn; }
   	// Contructor/destructor
-	RDPMessage();
-	~RDPMessage();
+	  RDPMessage();
+	  ~RDPMessage();
   
   private:
-  	std::string _magic; 	// "CSC361"
+    int _seqNumLen = pow(2, 16) - 1;
+  	std::string _magic = "CSC361"; 	// "CSC361"
   	int _type;				// Type of packet. DAT, ACK, etc...
   	int _seqNum;			// Sequence Number
   	int _ackNum;			// Acknowledgement Number

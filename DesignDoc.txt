@@ -20,7 +20,13 @@ RST packets? How to choose the initial sequence number?
 -----
 There will be an initial 2-way handshake where the client sends SYN and the 
 server responds with ACK. Same with FIN and RST. The sequence number will be 
-initialized as a random number between 0 and 2^16 - 1. 
+initialized as a random number between 0 and 2^16 - 1. Inside the header, the
+Type portion will be 5 bits long. 
+00001 represents DAT
+00010 represents ACK
+00100 represents SYN
+01000 represents FIN
+10000 represnets RST
 
 3. How do you design and implement the flow control using window size? How to 
 choose the initial window size and adjust the size? How to read and write the 
