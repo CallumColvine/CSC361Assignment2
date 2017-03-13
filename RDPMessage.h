@@ -4,11 +4,11 @@
 #include <string>
 #include <cmath>
 
-#define DAT     00001
-#define ACK     00010
-#define SYN     00100
-#define FIN     01000
-#define RST     10000
+// DAT = 00001
+// ACK = 00010
+// SYN = 00100
+// FIN = 01000
+// RST = 10000
 
 class RDPMessage
 {
@@ -18,12 +18,31 @@ class RDPMessage
   	// Getters
     int seqNumLen() { return _seqNumLen; }
   	std::string magic() { return _magic; }
-  	int type(){ return _type; }
+    // User must 0-pad the int themselves since the interger 0 values disappear
+  	int type(){ 
+        if (DAT())
+            return 1; 
+        else if (ACK())
+            return 10;
+        else if (SYN())
+            return 100;
+        else if (FIN())
+            return 1000;
+        else if (RST())
+            return 10000;
+        else 
+          return -1;
+    }
   	int seqNum(){ return _seqNum; }
   	int ackNum(){ return _ackNum; }
-  	int length(){ return _length; }
-  	int size(){ return _size; }
+  	int length(){ return _length; }              // Payload length
+  	int size(){ return _size; }                  // Window size
   	std::string message() { return _message; }
+    bool DAT() { return _dat; }
+    bool ACK() { return _ack; }
+    bool SYN() { return _syn; }
+    bool FIN() { return _fin; }
+    bool RST() { return _rst; }
   	// Setters
   	// void setMagic(std::string magicIn) { _magic = magicIn; }
   	void setType(int typeIn) { _type = typeIn; }
@@ -32,6 +51,11 @@ class RDPMessage
   	void setLength(int lengthIn) { _length = lengthIn; }
   	void setSize(int sizeIn) { _size = sizeIn; }
   	void setMessage(std::string messageIn) { _message = messageIn; }
+    void setDAT(bool isTrue) { _dat = isTrue; }
+    void setACK(bool isTrue) { _ack = isTrue; }
+    void setSYN(bool isTrue) { _syn = isTrue; }
+    void setFIN(bool isTrue) { _fin = isTrue; }
+    void setRST(bool isTrue) { _rst = isTrue; }
   	// Contructor/destructor
 	  RDPMessage();
 	  ~RDPMessage();
@@ -39,6 +63,11 @@ class RDPMessage
   private:
     int _seqNumLen = pow(2, 16) - 1;
   	std::string _magic = "CSC361"; 	// "CSC361"
+    bool _dat = false;
+    bool _ack = false;
+    bool _syn = false;
+    bool _fin = false;
+    bool _rst = false;
   	int _type;				// Type of packet. DAT, ACK, etc...
   	int _seqNum;			// Sequence Number
   	int _ackNum;			// Acknowledgement Number

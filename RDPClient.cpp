@@ -21,7 +21,7 @@ int recvSock;
 RDPMessage prepareMessage(){
 	RDPMessage message;
 	// do I need to fill these up to the expected max len?
-	message.setType(SYN);
+	message.setSYN(true);
 	message.setSeqNum(rand() % message.seqNumLen());
 	message.setAckNum(0);
 	message.setLength(0);
