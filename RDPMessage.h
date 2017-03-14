@@ -13,8 +13,10 @@
 class RDPMessage
 {
   public:
-  	std::string toString();
-    const char* toCString(char* wholeStr);
+    void updateLength();
+  	std::string toString(bool doPrint);
+    void toCString(char* wholeStr);
+    void unpackCString(char* wholeStr);
   	// Getters
     int seqNumLen() { return _seqNumLen; }
   	std::string magic() { return _magic; }
@@ -44,8 +46,19 @@ class RDPMessage
     bool FIN() { return _fin; }
     bool RST() { return _rst; }
   	// Setters
-  	// void setMagic(std::string magicIn) { _magic = magicIn; }
-  	void setType(int typeIn) { _type = typeIn; }
+  	void setMagic(std::string magicIn) { _magic = magicIn; }
+  	void setType(int typeIn) { 
+        if (typeIn == 1)
+            setDAT(true);
+        else if (typeIn == 10)
+            setACK(true);
+        else if (typeIn == 100)
+            setSYN(true);
+        else if (typeIn == 1000)
+            setFIN(true);
+        else if (typeIn == 10000)
+            setRST(true);
+    }
   	void setSeqNum(int seqNumIn) { _seqNum = seqNumIn; }
   	void setAckNum(int ackNumIn) { _ackNum = ackNumIn; }
   	void setLength(int lengthIn) { _length = lengthIn; }

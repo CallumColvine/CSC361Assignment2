@@ -20,26 +20,34 @@ int recvSock;
 
 RDPMessage prepareMessage(){
 	RDPMessage message;
-	// do I need to fill these up to the expected max len?
 	message.setSYN(true);
 	message.setSeqNum(rand() % message.seqNumLen());
 	message.setAckNum(0);
-	message.setLength(0);
 	message.setSize(0);
 	message.setMessage("");
+	message.setLength(0);
+	// std::string cppString = message.toString(false);
+	// message.setLength(cppString.length());
+	message.updateLength();
 	return message;
 }
 
-void establishConnection(RDPMessage message){
+void establishConnection(RDPMessage messageOut){
   	struct sockaddr_in sa;
 	int bytes_sent;
-	char buffer[200];
+	// char buffer[1024];
 	// ToDo: Edit copy here so it copies the whole message into the buffer
-	char messageString[2048];
+	char messageString[1024];
     memset(messageString, '\0', sizeof(messageString));
-	message.toCString(messageString);
-	std::cout << "messageString is " << messageString << std::endl;
-	strcpy(buffer, messageString);
+	messageOut.toCString(messageString);
+	// std::cout << "messageString is " << messageString << std::endl;
+	// std::cout << "Now unpackCString: " << std::endl;
+	RDPMessage newMessage;
+	newMessage.unpackCString(messageString);
+	newMessage.toString(true);
+
+	// Done testing 
+	// strcpy(buffer, messageString);
 	/* create an Internet, datagram, socket using UDP */
 	sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (-1 == sendSock) {
@@ -59,7 +67,7 @@ void establishConnection(RDPMessage message){
 	/* sockets are unsigned shorts, htons(x) ensures x is in network byte order, 
 	set the port to 7654 */
 	sa.sin_port = htons(8080);
-	bytes_sent = sendto(sendSock, buffer, strlen(buffer), 0,
+	bytes_sent = sendto(sendSock, messageString, strlen(messageString), 0,
 			(struct sockaddr*)&sa, sizeof sa);
 	if (bytes_sent < 0) {
 		printf("Error sending packet: %s\n", strerror(errno));
