@@ -1,8 +1,3 @@
-#include <iostream>
-#include <cstdlib>
-
-#include "RDPMessage.h"
-
 extern "C" {
 	#include <stdlib.h>
 	#include <stdio.h>
@@ -14,6 +9,13 @@ extern "C" {
 	#include <unistd.h>
 	#include <arpa/inet.h>
 }
+
+#include <iostream>
+#include <cstdlib>
+#include <fstream>
+
+#include "RDPMessage.h"
+
 
 int sendSock;
 int recvSock;
@@ -32,9 +34,35 @@ RDPMessage prepareMessage(){
 	return message;
 }
 
-void establishConnection(RDPMessage messageOut){
-  	struct sockaddr_in sa;
+void initSendSock(){
+	sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (-1 == sendSock) {
+	    printf("Error Creating Socket");
+	    exit(EXIT_FAILURE);
+	}
+}
+
+struct sockaddr_in initSa(std::string recvIP, std::string recvPort){
+	struct sockaddr_in sa;
+	/* Zero out socket address */
+	memset(&sa, 0, sizeof sa);
+	/* The address is IPv4 */
+	sa.sin_family = AF_INET;
+	/* IPv4 adresses is a uint32_t, convert a string representation of the 
+	octets to the appropriate value */
+	// sa.sin_addr.s_addr = inet_addr("10.10.1.100");
+	// sa.sin_addr.s_addr = inet_addr("10.0.2.255");
+	sa.sin_addr.s_addr = inet_addr(recvIP.c_str());
+	/* sockets are unsigned shorts, htons(x) ensures x is in network byte order, 
+	set the port to 7654 */
+	sa.sin_port = htons(stoi(recvPort));
+	return sa;
+}
+
+void sendInitSyn(RDPMessage messageOut, std::string recvIP, std::string recvPort){
 	int bytes_sent;
+	initSendSock();
+	struct sockaddr_in sa = initSa(recvIP, recvPort);
 	// char buffer[1024];
 	// ToDo: Edit copy here so it copies the whole message into the buffer
 	char messageString[1024];
@@ -45,55 +73,35 @@ void establishConnection(RDPMessage messageOut){
 	RDPMessage newMessage;
 	newMessage.unpackCString(messageString);
 	newMessage.toString(true);
-
-	// Done testing 
-	// strcpy(buffer, messageString);
-	/* create an Internet, datagram, socket using UDP */
-	sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (-1 == sendSock) {
-	    /* if socket failed to initialize, exit */
-	    printf("Error Creating Socket");
-	    exit(EXIT_FAILURE);
-	}
-	/* Zero out socket address */
-	memset(&sa, 0, sizeof sa);
-	/* The address is IPv4 */
-	sa.sin_family = AF_INET;
-	/* IPv4 adresses is a uint32_t, convert a string representation of the 
-	octets to the appropriate value */
-	// sa.sin_addr.s_addr = inet_addr("10.10.1.100");
-	// sa.sin_addr.s_addr = inet_addr("10.0.2.255");
-	sa.sin_addr.s_addr = inet_addr("10.0.2.15");
-	/* sockets are unsigned shorts, htons(x) ensures x is in network byte order, 
-	set the port to 7654 */
-	sa.sin_port = htons(8080);
 	bytes_sent = sendto(sendSock, messageString, strlen(messageString), 0,
 			(struct sockaddr*)&sa, sizeof sa);
 	if (bytes_sent < 0) {
 		printf("Error sending packet: %s\n", strerror(errno));
 	    exit(EXIT_FAILURE);
 	}
-	// close(sock); /* close the socket */
 }
 
-void awaitReply(){
-	recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+struct sockaddr_in createRecvSocket(){
 	struct sockaddr_in sa; 
-	char buffer[1024];
-	ssize_t recsize;
-	socklen_t fromlen;
-
 	memset(&sa, 0, sizeof sa);
 	sa.sin_family = AF_INET;
 	sa.sin_addr.s_addr = htonl(INADDR_ANY);
 	sa.sin_port = htons(8080);
-	fromlen = sizeof(sa);
-
 	if (-1 == bind(recvSock, (struct sockaddr *)&sa, sizeof sa)) {
 	    perror("error bind failed");
 	    close(recvSock);
 	    exit(EXIT_FAILURE);
 	}
+	return sa;
+}
+
+void recvInitAck(){
+	recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	char buffer[1024];
+	ssize_t recsize;
+	socklen_t fromlen;
+	struct sockaddr_in sa = createRecvSocket();
+	fromlen = sizeof(sa);
 
 	for (;;) {
 	    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
@@ -107,11 +115,49 @@ void awaitReply(){
 	}
 }
 
+int establishConnection(RDPMessage messageOut, std::string sendIP, 
+						 std::string sendPort, std::string recvIP, 
+						 std::string recvPort){
+	sendInitSyn(messageOut, recvIP, recvPort);
+	recvInitAck();
+	// close(sock); /* close the socket */
+	// Should return the total recv window size
+	return 10240;
+}
+
+int getFileLen(std::string filename){
+	std::ifstream inFile(filename, std::ios::binary | std::ios::ate);
+    int fileLen = inFile.tellg();
+    inFile.close();
+    return fileLen;
+}
+
+void openFile(std::string filename, char* fileContents, int fileLen){
+	// Get file length
+    // Read in file
+    FILE * inFileC = fopen(filename.c_str(), "r");
+    int bytes_read = fread(fileContents, sizeof(char), fileLen, inFileC);
+    if (bytes_read == 0)
+    std::cout << "Input file is empty" << std::endl;
+	
+}
+
+void sendFile(std::string filename, int winSize){
+	// Max RDP packet size = 1024 bytes
+	int fileLen = getFileLen(filename);
+    char fileContents[fileLen + 1];
+    memset(fileContents, '\0', sizeof(fileContents));
+	openFile(filename, fileContents, fileLen);
+}
+
 int main(int argc, char const *argv[])
 {
 	// std::cout << sizeof "CSC361" << std::endl;
 	RDPMessage message = prepareMessage();
-	establishConnection(message);
-	// awaitReply();
+	// Initial 2-way handshake
+	// Sender IP, Sender Port, Recv IP, Recv Port 
+	int winSize = establishConnection(message, argv[1], argv[2], argv[3], argv[4]);
+	// Use known window size from handshake to send file
+	sendFile(argv[5], winSize);
 	return 0;
 }
