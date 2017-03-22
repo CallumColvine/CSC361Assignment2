@@ -10,10 +10,12 @@
 // FIN = 01000
 // RST = 10000
 
+#define MAX_MESS_LEN 1024
+
 class RDPMessage
 {
   public:
-    void updateLength();
+    // void updateLength();
   	std::string toString(bool doPrint);
     void toCString(char* wholeStr);
     void unpackCString(char* wholeStr);

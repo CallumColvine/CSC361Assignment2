@@ -64,7 +64,7 @@ RDPMessage prepareMessageOut(RDPMessage messageOut, RDPMessage messageIn){
 	messageOut.setAckNum(ackNum);
 	messageOut.setSize(0);
 	messageOut.setMessage("");
-	messageOut.updateLength();
+	// messageOut.updateLength();
 	return messageOut;
 }
 

@@ -7,12 +7,14 @@
 #include "RDPMessage.h"
 
 
-void RDPMessage::updateLength(){
-	char messageString[1024];
-    memset(messageString, '\0', sizeof(messageString));
-    toCString(messageString);
-	setLength(strlen(messageString));
-}
+
+
+// void RDPMessage::updateLength(){
+// 	char messageString[MAX_MESS_LEN];
+//     memset(messageString, '\0', sizeof(messageString));
+//     toCString(messageString);
+// 	setLength(strlen(messageString));
+// }
 
 std::string RDPMessage::toString(bool doPrint){ 
 	// std::cout << "ACK val is " << ACK() << std::endl;

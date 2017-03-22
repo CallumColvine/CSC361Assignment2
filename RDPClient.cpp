@@ -18,20 +18,39 @@ extern "C" {
 
 
 int sendSock;
+struct sockaddr_in saIn;
 int recvSock;
+struct sockaddr_in saOut;
+// Seems to be 36 atm (or 35, going with 36 though)
+int HEADER_LENGTH = 0;
 
-RDPMessage prepareMessage(){
+RDPMessage prepSynMessage(){
 	RDPMessage message;
 	message.setSYN(true);
 	message.setSeqNum(rand() % message.seqNumLen());
 	message.setAckNum(0);
 	message.setSize(0);
 	message.setMessage("");
+	// Not important for no-data messages
 	message.setLength(0);
 	// std::string cppString = message.toString(false);
 	// message.setLength(cppString.length());
-	message.updateLength();
+	// message.updateLength();
 	return message;
+}
+
+RDPMessage prepFileMessage(int seqNum, int fileLen, std::string message){
+	RDPMessage message;
+	message.setDAT(true);
+	message.setSeqNum(seqNum);
+	message.setAckNum(0);
+	message.setSize(0);
+	message.setMessage("");
+	message.setLength(fileLen);
+	// std::string cppString = message.toString(false);
+	// message.setLength(cppString.length());
+	// message.updateLength();
+	return message;	
 }
 
 void initSendSock(){
@@ -62,7 +81,7 @@ struct sockaddr_in initSa(std::string recvIP, std::string recvPort){
 void sendInitSyn(RDPMessage messageOut, std::string recvIP, std::string recvPort){
 	int bytes_sent;
 	initSendSock();
-	struct sockaddr_in sa = initSa(recvIP, recvPort);
+	saOut = initSa(recvIP, recvPort);
 	// char buffer[1024];
 	// ToDo: Edit copy here so it copies the whole message into the buffer
 	char messageString[1024];
@@ -74,7 +93,7 @@ void sendInitSyn(RDPMessage messageOut, std::string recvIP, std::string recvPort
 	newMessage.unpackCString(messageString);
 	newMessage.toString(true);
 	bytes_sent = sendto(sendSock, messageString, strlen(messageString), 0,
-			(struct sockaddr*)&sa, sizeof sa);
+			(struct sockaddr*)&saOut, sizeof saOut);
 	if (bytes_sent < 0) {
 		printf("Error sending packet: %s\n", strerror(errno));
 	    exit(EXIT_FAILURE);
@@ -100,26 +119,26 @@ void recvInitAck(){
 	char buffer[1024];
 	ssize_t recsize;
 	socklen_t fromlen;
-	struct sockaddr_in sa = createRecvSocket();
-	fromlen = sizeof(sa);
+	saIn = createRecvSocket();
+	fromlen = sizeof(saIn);
 
-	for (;;) {
-	    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
-	    		(struct sockaddr*)&sa, &fromlen);
-	    if (recsize < 0) {
-	        fprintf(stderr, "%s\n", strerror(errno));
-	        exit(EXIT_FAILURE);
-	    }
-	    printf("datagram: %.*s\n", (int)recsize, buffer);
-	    break;
-	}
+	// for (;;) {
+    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
+    		(struct sockaddr*)&saIn, &fromlen);
+    if (recsize < 0) {
+        fprintf(stderr, "%s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    printf("datagram: %.*s\n", (int)recsize, buffer);
+    // break;
+	// }
 }
 
 int establishConnection(RDPMessage messageOut, std::string sendIP, 
 						 std::string sendPort, std::string recvIP, 
 						 std::string recvPort){
 	sendInitSyn(messageOut, recvIP, recvPort);
-	recvInitAck();
+	// recvInitAck();
 	// close(sock); /* close the socket */
 	// Should return the total recv window size
 	return 10240;
@@ -132,32 +151,58 @@ int getFileLen(std::string filename){
     return fileLen;
 }
 
-void openFile(std::string filename, char* fileContents, int fileLen){
+std::string openFile(std::string filename, char* fileContents, int fileLen){
 	// Get file length
     // Read in file
     FILE * inFileC = fopen(filename.c_str(), "r");
     int bytes_read = fread(fileContents, sizeof(char), fileLen, inFileC);
     if (bytes_read == 0)
-    std::cout << "Input file is empty" << std::endl;
-	
+    	std::cout << "Input file is empty" << std::endl;
+
+	return std::string(fileContents);
 }
 
-void sendFile(std::string filename, int winSize){
+// winSize is the TOTAL receiver window
+void sendFile(std::string filename, int winSize, int seqNum){
 	// Max RDP packet size = 1024 bytes
 	int fileLen = getFileLen(filename);
+	std::cout << "Reading in the file " << filename << " of length " << fileLen << std::endl;
     char fileContents[fileLen + 1];
     memset(fileContents, '\0', sizeof(fileContents));
-	openFile(filename, fileContents, fileLen);
+	std::string wholeFile = openFile(filename, fileContents, fileLen);
+	// Loop through file sending parts until their expected buffer is full
+	int fileSent = 0;
+
+    memset(fileContents, '\0', sizeof(fileContents));
+
+    int dataReplySize = fileLen;
+    if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
+    	dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
+    // --- Loop starts here ---
+    std::string sendFilePart;
+    RDPMessage filePart = prepFileMessage(seqNum, fileLen, sendFilePart);
+    // copy into the full reply the window size - header size worth of message
+
+	// while (fileSent < fileLen){
+    char fullReply[winSize];
+    int bytesSent = sendto(sendSock, fullReply, dataReplySize, 0,
+                    (struct sockaddr*)&saOut, sizeof saOut);
+	fileSent += bytesSent;
+	// }
+
 }
 
 int main(int argc, char const *argv[])
 {
 	// std::cout << sizeof "CSC361" << std::endl;
-	RDPMessage message = prepareMessage();
+	RDPMessage message = prepSynMessage();
+    char header[200];
+    message.toCString(header);
+    HEADER_LENGTH = strlen(header);
 	// Initial 2-way handshake
 	// Sender IP, Sender Port, Recv IP, Recv Port 
 	int winSize = establishConnection(message, argv[1], argv[2], argv[3], argv[4]);
 	// Use known window size from handshake to send file
-	sendFile(argv[5], winSize);
+	sendFile(argv[5], winSize, message.seqNum() + 1);
 	return 0;
 }
