@@ -12,6 +12,7 @@
 
 #define MAX_MESS_LEN 1024
 
+
 class RDPMessage
 {
   public:

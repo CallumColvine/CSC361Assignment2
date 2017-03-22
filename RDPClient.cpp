@@ -39,13 +39,13 @@ RDPMessage prepSynMessage(){
 	return message;
 }
 
-RDPMessage prepFileMessage(int seqNum, int fileLen, std::string message){
+RDPMessage prepFileMessage(int seqNum, int fileLen, std::string contents){
 	RDPMessage message;
 	message.setDAT(true);
 	message.setSeqNum(seqNum);
 	message.setAckNum(0);
 	message.setSize(0);
-	message.setMessage("");
+	message.setMessage(contents);
 	message.setLength(fileLen);
 	// std::string cppString = message.toString(false);
 	// message.setLength(cppString.length());
@@ -173,19 +173,23 @@ void sendFile(std::string filename, int winSize, int seqNum){
 	// Loop through file sending parts until their expected buffer is full
 	int fileSent = 0;
 
-    memset(fileContents, '\0', sizeof(fileContents));
 
     int dataReplySize = fileLen;
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
     	dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
     // --- Loop starts here ---
-    std::string sendFilePart;
-    RDPMessage filePart = prepFileMessage(seqNum, fileLen, sendFilePart);
-    // copy into the full reply the window size - header size worth of message
+    int i = 0;
+    std::string sendFilePart = wholeFile.substr(i, dataReplySize);
+    RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
+    std::cout << "--- sendFilePart is --- " << sendFilePart << std::endl;
+    char fullReply[MAX_MESS_LEN];
+    memset(fullReply, '\0', sizeof(fullReply));
+    messageObj.toCString(fullReply);
+    std::cout << "--- Full reply is --- " << fullReply << std::endl; 
+    std::cout << "StrnLen full reply is " << strlen(fullReply) << std::endl;
 
 	// while (fileSent < fileLen){
-    char fullReply[winSize];
-    int bytesSent = sendto(sendSock, fullReply, dataReplySize, 0,
+    int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
                     (struct sockaddr*)&saOut, sizeof saOut);
 	fileSent += bytesSent;
 	// }

@@ -13,28 +13,30 @@ extern "C" {
 
 #include <iostream>
 #include "RDPMessage.h"
+#include <fstream>
+// #include <string>
 
-#define WINDOW_SIZE 		1024
+// #define WINDOW_SIZE 		1024
 #define FULL_WINDOW_SIZE 	10240
 
 int sendSock;
+struct sockaddr_in saIn; 
 int recvSock;
 
 RDPMessage establishConnection(){
 	recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	struct sockaddr_in sa; 
-	char buffer[WINDOW_SIZE];
+	char buffer[MAX_MESS_LEN];
     memset(buffer, '\0', sizeof(buffer));
 	ssize_t recsize;
 	socklen_t fromlen;
 
-	memset(&sa, 0, sizeof sa);
-	sa.sin_family = AF_INET;
-	sa.sin_addr.s_addr = htonl(INADDR_ANY);
-	sa.sin_port = htons(8080);
-	fromlen = sizeof(sa);
+	memset(&saIn, 0, sizeof saIn);
+	saIn.sin_family = AF_INET;
+	saIn.sin_addr.s_addr = htonl(INADDR_ANY);
+	saIn.sin_port = htons(8080);
+	fromlen = sizeof(saIn);
 
-	if (-1 == bind(recvSock, (struct sockaddr *)&sa, sizeof sa)) {
+	if (-1 == bind(recvSock, (struct sockaddr *)&saIn, sizeof saIn)) {
 	    perror("error bind failed");
 	    close(recvSock);
 	    exit(EXIT_FAILURE);
@@ -42,7 +44,7 @@ RDPMessage establishConnection(){
 
 	// for (;;) {
     recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
-    		(struct sockaddr*)&sa, &fromlen);
+    		(struct sockaddr*)&saIn, &fromlen);
     if (recsize < 0) {
         fprintf(stderr, "%s\n", strerror(errno));
         exit(EXIT_FAILURE);
@@ -75,7 +77,7 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	int bytes_sent;
 	// char buffer[WINDOW_SIZE];
 	// ToDo: Edit copy here so it copies the whole message into the buffer
-	char messageString[WINDOW_SIZE];
+	char messageString[MAX_MESS_LEN];
     memset(messageString, '\0', sizeof(messageString));
     messageOut.toString(true);
     messageOut.toCString(messageString);
@@ -108,21 +110,53 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	}
 }
 
-void inputData(){
-
+RDPMessage inputData(){
+	ssize_t recsize;
+	socklen_t fromlen = sizeof(saIn);
+	char buffer[MAX_MESS_LEN];
+    memset(buffer, '\0', sizeof(buffer));
+    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
+    		(struct sockaddr*)&saIn, &fromlen);
+    if (recsize < 0) {
+        fprintf(stderr, "%s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    printf("datagram: %.*s\n", (int)recsize, buffer);
+    	// break;
+	// }
+	RDPMessage messageIn;
+	messageIn.unpackCString(buffer);
+	return messageIn;
 }
+
+// void writeInputToFile(RDPMessage messageIn, std::ofstream out){
+// 	// std::cin >> messageIn;
+// 	out << messageIn;
+// 	// std::cout << "Writing to file... " << std::endl;
+// 	// char buff[messageIn.message().size()];
+// 	// buff = messageIn.message().c_str();
+// 	// // std::cout << "Write out buff is " << buff << std::endl;
+// 	// fwrite (buff, sizeof(char), sizeof(buff), pFile);
+// }
 
 void sendAck(){
 
 }
 
-void inputLoop(char* fullWindow){
+void inputLoop(char* fullWindow, std::string filenameOut){
 	// Here is where I loop forever until I get a FIN packet
+	// FILE* pFile = fopen(filenameOut.c_str(), "w");
+	std::ofstream out;
+	out.open(filenameOut, std::ofstream::out | std::ofstream::app);
 	bool receivedFIN = false;
 	while(receivedFIN == false){
-		inputData();
+		RDPMessage messageIn = inputData();
+		out << messageIn.message();
+		out.flush();
+		// writeInputToFile(messageIn, out);
 		sendAck();
 	}
+	out.close();
 }
 
 int main(int argc, char const *argv[])
@@ -130,7 +164,7 @@ int main(int argc, char const *argv[])
 	char fullWindow[FULL_WINDOW_SIZE];
 	RDPMessage messageIn = establishConnection();
 	RDPMessage messageOut;
-	sendReply(messageIn, messageOut);
-	inputLoop(fullWindow);
+	// sendReply(messageIn, messageOut);
+	inputLoop(fullWindow, argv[3]);
 	return 0;
 }
