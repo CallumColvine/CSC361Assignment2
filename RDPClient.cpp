@@ -5,6 +5,7 @@ extern "C" {
 	#include <string.h>
 	#include <sys/socket.h>
 	#include <sys/types.h>
+	#include <sys/time.h>
 	#include <netinet/in.h>
 	#include <unistd.h>
 	#include <arpa/inet.h>
@@ -13,6 +14,10 @@ extern "C" {
 #include <iostream>
 #include <cstdlib>
 #include <fstream>
+#include <thread>
+#include <mutex>
+#include <vector>
+#include <future>
 
 #include "RDPMessage.h"
 
@@ -162,16 +167,82 @@ std::string openFile(std::string filename, char* fileContents, int fileLen){
 	return std::string(fileContents);
 }
 
+// int waitForInput(){
+
+// }
+
+template<typename R>
+  bool is_ready(std::future<R> const& f)
+  { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }
+
+
+std::mutex listEdit;
+// Could be winSize / maxPackSize, ie. 10
+// volatile std::vector<RDPMessage> packWaitAckList;
+std::vector<RDPMessage> packWaitAckList;
+// returns -1 on thread ACK
+// returns seqNum on timed out message
+int sendAndWaitThread(RDPMessage messageObj){
+	// --- Send Packet ---
+	// Copy starts here
+    // std::cout << "--- sendFilePart is --- " << sendFilePart << std::endl;
+    char fullReply[MAX_MESS_LEN];
+    memset(fullReply, '\0', sizeof(fullReply));
+    messageObj.toCString(fullReply);
+    // std::cout << "--- Full reply is --- " << fullReply << std::endl; 
+    // std::cout << "StrnLen full reply is " << strlen(fullReply) << std::endl;
+	// while (fileSent < fileLen){
+    listEdit.lock();
+    int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
+                    (struct sockaddr*)&saOut, sizeof saOut);
+	packWaitAckList.push_back(messageObj);
+	listEdit.unlock();
+    // Ends here
+    // --- Wait for Reply Packet here ---
+    std::cout << "Packet is sent " << bytesSent << " now waiting for ACK reply" 
+    		<< std::endl;
+    // Set a timer with timeout == 3 seconds
+    struct timeval timeout;
+    timeout.tv_sec = 3; 
+    timeout.tv_usec = 0; 
+    fd_set fdRead;
+    FD_ZERO(&fdRead); 
+    FD_SET(recvSock, &fdRead); 
+    int retval = select(0, &fdRead, NULL, NULL, &timeout); 
+    // Recursive error check sending
+    if (retval <= 0){
+	    std::cout << "Response timed out. Re-send..." << std::endl;
+	    return sendAndWaitThread(messageObj);
+	} else { 
+        // if ( (n = Readline(sockfd, line, MAXLINE)) <= 0) 
+            // return; /* error or connection closed by other end */ 
+        // Writen(sockfd, line, n); 
+    	char buffer[1024];
+		socklen_t fromlen = sizeof(saIn);
+		ssize_t recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
+    			(struct sockaddr*)&saIn, &fromlen);
+	    if (recsize < 0) {
+	        fprintf(stderr, "%s\n", strerror(errno));
+	        exit(EXIT_FAILURE);
+    	}
+    	// RDPMessage temp;
+    	// temp.unpackCString(buffer);
+    	return -1;
+    } 
+    return messageObj.seqNum();
+}
+
 // winSize is the TOTAL receiver window
 void sendFile(std::string filename, int winSize, int seqNum){
 	// Max RDP packet size = 1024 bytes
 	int fileLen = getFileLen(filename);
-	std::cout << "Reading in the file " << filename << " of length " << fileLen << std::endl;
+	// std::cout << "Reading in the file " << filename << " of length " << fileLen << std::endl;
     char fileContents[fileLen + 1];
     memset(fileContents, '\0', sizeof(fileContents));
 	std::string wholeFile = openFile(filename, fileContents, fileLen);
 	// Loop through file sending parts until their expected buffer is full
-	int fileSent = 0;
+	// ToDo: Necessary
+	// int fileSent = 0;
 
 
     int dataReplySize = fileLen;
@@ -181,19 +252,36 @@ void sendFile(std::string filename, int winSize, int seqNum){
     int i = 0;
     std::string sendFilePart = wholeFile.substr(i, dataReplySize);
     RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
-    std::cout << "--- sendFilePart is --- " << sendFilePart << std::endl;
-    char fullReply[MAX_MESS_LEN];
-    memset(fullReply, '\0', sizeof(fullReply));
-    messageObj.toCString(fullReply);
-    std::cout << "--- Full reply is --- " << fullReply << std::endl; 
-    std::cout << "StrnLen full reply is " << strlen(fullReply) << std::endl;
+	// std::promise<int> p;
+    std::future<int> p = std::async(sendAndWaitThread, messageObj);
+    int retAck = p.get();
+    std::cout << "My thread promise is " << retAck << std::endl;
+    // This means we need to re-send the package with the 
+    // Change to while loop for infinite fix?
+    // listEdit.lock();
+    // Error is from calling get() too many times
+    // You can ONLY call get() once
+    // Why don't I default it to the ackNum so it only falls into the loop once	
+    // std::cout << "Is ready result is " << is_ready(p) << std::endl;
+ //    if (retAck != -1)
+ //    {
+ //    	for (uint i = 0; i < packWaitAckList.size(); ++i)
+ //    	{
+ //    		if (packWaitAckList[i].seqNum() == retAck)
+ //    		{
+ //    			std::cout << "Resending packWaitAckList[i]" << std::endl;
+	// 		    // std::future<int> p = std::async(sendAndWaitThread, messageObj);
+ //    			// p.get();
+	// 		    // std::cout << "My thread promise is " << retAck << std::endl;
+ //    		}
+ //    	}
+ //    }
+	// listEdit.unlock();
+    // -- Copied to thread --
+	// fileSent += bytesSent;
+    // ToDo: Neccessary
 
-	// while (fileSent < fileLen){
-    int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
-                    (struct sockaddr*)&saOut, sizeof saOut);
-	fileSent += bytesSent;
 	// }
-
 }
 
 int main(int argc, char const *argv[])

@@ -108,8 +108,8 @@ void RDPMessage::unpackCString(char* wholeStr){
 	char messageCopyBuff[MAX_MESS_LEN];
 	memset(messageCopyBuff, '\0', sizeof(messageCopyBuff));
 	// Should be the first char after the newline. Needs verification
-	std::cout << "----------------- WholeStr is ----------------- \n" << 
-			wholeStr << std::endl;
+	// std::cout << "----------------- WholeStr is ----------------- \n" << 
+	// 		wholeStr << std::endl;
 	if (length() > 0)
 	{
 		// std::cout << "length is " << length() << std::endl;

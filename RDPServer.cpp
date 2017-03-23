@@ -146,6 +146,7 @@ void sendAck(){
 void inputLoop(char* fullWindow, std::string filenameOut){
 	// Here is where I loop forever until I get a FIN packet
 	// FILE* pFile = fopen(filenameOut.c_str(), "w");
+	// Open file for writing
 	std::ofstream out;
 	out.open(filenameOut, std::ofstream::out | std::ofstream::app);
 	bool receivedFIN = false;
