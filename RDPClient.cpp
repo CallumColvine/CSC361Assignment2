@@ -177,9 +177,11 @@ template<typename R>
 
 
 std::mutex listEdit;
+std::mutex winSizeEdit;
 // Could be winSize / maxPackSize, ie. 10
 // volatile std::vector<RDPMessage> packWaitAckList;
 std::vector<RDPMessage> packWaitAckList;
+volatile int senderWindowSize = FULL_WINDOW_SIZE;
 // returns -1 on thread ACK
 // returns seqNum on timed out message
 int sendAndWaitThread(RDPMessage messageObj){
@@ -218,9 +220,13 @@ int sendAndWaitThread(RDPMessage messageObj){
 	        fprintf(stderr, "%s\n", strerror(errno));
 	        exit(EXIT_FAILURE);
     	}
-    	// RDPMessage temp;
-    	// temp.unpackCString(buffer);
+    	winSizeEdit.lock();
+    	RDPMessage temp;
+    	temp.unpackCString(buffer);
+    	senderWindowSize = temp.size();
     	// ToDo: Remove self from list 
+    	winSizeEdit.unlock();
+
     	return bytesSent;
     } 
     return messageObj.seqNum();
@@ -236,27 +242,31 @@ void sendFile(std::string filename, int winSize, int seqNum){
 	// Loop through file sending parts until their expected buffer is full
 	// ToDo: Necessary
 	// int fileSent = 0;
-
-
     int dataReplySize = fileLen;
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
     	dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
-    // --- Loop starts here ---
-    // int i = 0;
-    for (int i = 0; i < fileLen; i += dataReplySize){
-    	std::cout << "Looping. File len is " << fileLen << " data reply size " 
-    			<< dataReplySize << std::endl;
-	    std::string sendFilePart = wholeFile.substr(i, dataReplySize);
-	    RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
-		// std::promise<int> p;
-	    std::future<int> p = std::async(sendAndWaitThread, messageObj);
-	    int retAck = p.get();
-	    std::cout << "My thread promise is " << retAck << std::endl;
-    }
+    int i = 0;
+    int packetNum = 0;
+    // bool recvBuffFull = false;
+    int guessSent = 0;
+    for (;;){
+		// While there's still file to go and while their buff is not full
+	    while (i < fileLen && senderWindowSize <= FULL_WINDOW_SIZE && guessSent < FULL_WINDOW_SIZE){
+	    	guessSent += MAX_MESS_LEN;
+	    	std::cout << "Looping. File len is " << fileLen << " data reply size " 
+	    			<< dataReplySize << " packet num " << packetNum << std::endl;
+		    std::string sendFilePart = wholeFile.substr(i, dataReplySize);
+		    RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
+			// std::promise<int> p;
+		    // std::future<int> p = std::async(sendAndWaitThread, messageObj);
+		    std::thread(sendAndWaitThread, messageObj).detach();
+		    // int retAck = p.get();
+		    // std::cout << "My thread promise is " << retAck << std::endl;
+		    i += dataReplySize;
+		    packetNum ++;
+	    }
+	}
     // ToDo: Try making identical loop to re-join all the threads 
-
-
-
     // This means we need to re-send the package with the 
     // Change to while loop for infinite fix?
     // listEdit.lock();

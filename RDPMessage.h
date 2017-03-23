@@ -11,6 +11,7 @@
 // RST = 10000
 
 #define MAX_MESS_LEN 1024
+#define FULL_WINDOW_SIZE  10240
 
 
 class RDPMessage
