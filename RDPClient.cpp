@@ -184,20 +184,15 @@ std::vector<RDPMessage> packWaitAckList;
 // returns seqNum on timed out message
 int sendAndWaitThread(RDPMessage messageObj){
 	// --- Send Packet ---
-	// Copy starts here
-    // std::cout << "--- sendFilePart is --- " << sendFilePart << std::endl;
     char fullReply[MAX_MESS_LEN];
     memset(fullReply, '\0', sizeof(fullReply));
     messageObj.toCString(fullReply);
-    // std::cout << "--- Full reply is --- " << fullReply << std::endl; 
-    // std::cout << "StrnLen full reply is " << strlen(fullReply) << std::endl;
 	// while (fileSent < fileLen){
     listEdit.lock();
     int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
                     (struct sockaddr*)&saOut, sizeof saOut);
 	packWaitAckList.push_back(messageObj);
 	listEdit.unlock();
-    // Ends here
     // --- Wait for Reply Packet here ---
     std::cout << "Packet is sent " << bytesSent << " now waiting for ACK reply" 
     		<< std::endl;
@@ -212,11 +207,9 @@ int sendAndWaitThread(RDPMessage messageObj){
     // Recursive error check sending
     if (retval <= 0){
 	    std::cout << "Response timed out. Re-send..." << std::endl;
+	    // ToDo: Check if it's still in the list, it might have been already covered
 	    return sendAndWaitThread(messageObj);
 	} else { 
-        // if ( (n = Readline(sockfd, line, MAXLINE)) <= 0) 
-            // return; /* error or connection closed by other end */ 
-        // Writen(sockfd, line, n); 
     	char buffer[1024];
 		socklen_t fromlen = sizeof(saIn);
 		ssize_t recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
@@ -227,7 +220,8 @@ int sendAndWaitThread(RDPMessage messageObj){
     	}
     	// RDPMessage temp;
     	// temp.unpackCString(buffer);
-    	return -1;
+    	// ToDo: Remove self from list 
+    	return bytesSent;
     } 
     return messageObj.seqNum();
 }
@@ -236,7 +230,6 @@ int sendAndWaitThread(RDPMessage messageObj){
 void sendFile(std::string filename, int winSize, int seqNum){
 	// Max RDP packet size = 1024 bytes
 	int fileLen = getFileLen(filename);
-	// std::cout << "Reading in the file " << filename << " of length " << fileLen << std::endl;
     char fileContents[fileLen + 1];
     memset(fileContents, '\0', sizeof(fileContents));
 	std::string wholeFile = openFile(filename, fileContents, fileLen);
@@ -249,13 +242,21 @@ void sendFile(std::string filename, int winSize, int seqNum){
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
     	dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
     // --- Loop starts here ---
-    int i = 0;
-    std::string sendFilePart = wholeFile.substr(i, dataReplySize);
-    RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
-	// std::promise<int> p;
-    std::future<int> p = std::async(sendAndWaitThread, messageObj);
-    int retAck = p.get();
-    std::cout << "My thread promise is " << retAck << std::endl;
+    // int i = 0;
+    for (int i = 0; i < fileLen; i += dataReplySize){
+    	std::cout << "Looping. File len is " << fileLen << " data reply size " 
+    			<< dataReplySize << std::endl;
+	    std::string sendFilePart = wholeFile.substr(i, dataReplySize);
+	    RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
+		// std::promise<int> p;
+	    std::future<int> p = std::async(sendAndWaitThread, messageObj);
+	    int retAck = p.get();
+	    std::cout << "My thread promise is " << retAck << std::endl;
+    }
+    // ToDo: Try making identical loop to re-join all the threads 
+
+
+
     // This means we need to re-send the package with the 
     // Change to while loop for infinite fix?
     // listEdit.lock();
@@ -289,8 +290,10 @@ int main(int argc, char const *argv[])
 	// std::cout << sizeof "CSC361" << std::endl;
 	RDPMessage message = prepSynMessage();
     char header[200];
+    memset(header, '\0', sizeof(header));
     message.toCString(header);
     HEADER_LENGTH = strlen(header);
+    std::cout << "HEADER_LENGTH was " << HEADER_LENGTH << std::endl;
 	// Initial 2-way handshake
 	// Sender IP, Sender Port, Recv IP, Recv Port 
 	int winSize = establishConnection(message, argv[1], argv[2], argv[3], argv[4]);
