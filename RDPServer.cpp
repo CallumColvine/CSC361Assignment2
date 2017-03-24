@@ -101,7 +101,7 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	/* create an Internet, datagram, socket using UDP */
 	sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (-1 == sendSock) {
-	    /* if socket failed to initialize, exit */
+	    // if socket failed to initialize, exit 
 	    printf("Error Creating Socket");
 	    exit(EXIT_FAILURE);
 	}
@@ -117,7 +117,7 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	/* sockets are unsigned shorts, htons(x) ensures x is in network byte order, 
 	set the port to 7654 */
 	// sa.sin_port = htons(8080);
-	bytes_sent = sendto(sendSock, messageString, strlen(messageString), 0,
+	bytes_sent = sendto(recvSock, messageString, strlen(messageString), 0,
 			(struct sockaddr*)&saIn, sizeof saIn);
 	if (bytes_sent < 0) {
 		printf("Error sending packet: %s\n", strerror(errno));
