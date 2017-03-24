@@ -185,11 +185,26 @@ std::string openFile(std::string filename, char* fileContents, int fileLen){
 
 // }
 
+// Finds all occurances of a specific ACK num and removes it from messToSend 
+// and prioritySend. 
+
+// void removeDuplicates(){
+// 	listEdit.lock();
+// 	for (uint j = 0; j < messToSend.size(); j++)
+// 		if (messToSend[j].seqNum() == ackNum)
+// 			messToSend.erase(messToSend.begin() + j);
+// 	for (uint i = 0; i < prioritySend.size(); i++)
+// 		if (prioritySend[i].seqNum() == ackNum)
+// 			prioritySend.erase(prioritySend.begin() + i);
+// 	listEdit.unlock();
+// }
+
 template<typename R>
   bool is_ready(std::future<R> const& f)
   { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }
 
 std::vector<RDPMessage> messToSend;
+std::vector<RDPMessage> prioritySend;
 
 std::mutex listEdit;
 std::mutex winSizeEdit;
@@ -201,6 +216,19 @@ volatile int senderWindowSize = FULL_WINDOW_SIZE;
 volatile int sendNext = -1;
 volatile int expectedAckNum = 0;
 volatile int guessSent = 0;
+volatile int lastAck = 0;
+volatile int lastSize = 0;
+
+void filterList(int ackNum){
+	listEdit.lock();
+	for (uint j = 0; j < messToSend.size(); j++)
+		if (messToSend[j].seqNum() == ackNum)
+			messToSend.erase(messToSend.begin() + j);
+	for (uint i = 0; i < prioritySend.size(); i++)
+		if (prioritySend[i].seqNum() == ackNum)
+			prioritySend.erase(prioritySend.begin() + i);
+	listEdit.unlock();
+}
 
 // returns -1 on thread ACK
 // returns seqNum on timed out message
@@ -209,12 +237,8 @@ int sendAndWaitThread(RDPMessage messageObj){
     char fullReply[MAX_MESS_LEN];
     memset(fullReply, '\0', sizeof(fullReply));
     messageObj.toCString(fullReply);
-	// while (fileSent < fileLen){
-    // listEdit.lock();
     int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
                     (struct sockaddr*)&saOut, sizeof saOut);
-	// packWaitAckList.push_back(messageObj);
-	// listEdit.unlock();
     // --- Wait for Reply Packet here ---
     std::cout << "Packet is sent " << bytesSent << " now waiting for ACK reply" 
     		<< std::endl;
@@ -229,53 +253,80 @@ int sendAndWaitThread(RDPMessage messageObj){
     if (retval <= 0){
 	    std::cout << "Response timed out. Re-send by prioritizing " << 
 	    		messageObj.seqNum() << std::endl;
-	    // ToDo: Check if it's still in the list, it might have been already covered
-	    // return sendAndWaitThread(messageObj);
-		sendNext = messageObj.seqNum();
+	    // Only add if not alread in list
+		// auto inList = find_if(prioritySend.begin(), prioritySend.end(), 
+		// 					  [&messageObj.seqNum()](const RDPMessage& obj) {
+		// 		return obj.seqNum() == messageObj.seqNum();})
+		// if (!inList)
+    	prioritySend.insert(prioritySend.begin(), messageObj);
 		return bytesSent;
 	} 
-    // std::cout << "!!!! retval is " << retval << std::endl;
-    // Recursive error check sending
 	char buffer[1024];
 	socklen_t fromlen = sizeof(saOut);
 	std::cout << "Setting thread to wait for ACK " << std::endl;
 	ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
 			(struct sockaddr*)&saOut, &fromlen);
-	std::cout << "Thread received reply!! " << std::endl;
     if (recsize < 0) {
         fprintf(stderr, "%s\n", strerror(errno));
         exit(EXIT_FAILURE);
 	}
 	RDPMessage temp;
 	temp.unpackCString(buffer);
+
+	ackNumEdit.lock();
+	if (temp.seqNum() > lastAck)
+	{
+		lastAck = temp.seqNum();
+		lastSize = bytesSent;
+	}
 	winSizeEdit.lock();
 	senderWindowSize = temp.size();
-	ackNumEdit.lock();
 	if (expectedAckNum == temp.seqNum())
 	{
 		std::cout << "- Packet was acknowledged with expected ACK num" << std::endl;
-		for (uint j = 0; j < messToSend.size(); j++)
-		{
-			if (messToSend[j].seqNum() == sendNext)
-			{
-				std::cout << "Removing ACK-ed packet from list " << std::endl;
-				listEdit.lock();
-    			guessSent -= MAX_MESS_LEN;
-				messToSend.erase(messToSend.begin() + j);
-				listEdit.unlock();
-			}
-		}
+		filterList(expectedAckNum - bytesSent);		
 		expectedAckNum += bytesSent;
 	} else {
-		std::cout << "Packet did NOT have expected ACK num " << expectedAckNum <<
+		std::cout << "- Packet unexpected ACK " << expectedAckNum <<
 				" it received " << temp.seqNum() << "Prioritizing" <<
 				" the re-send of the expected packet" << std::endl;
-		sendNext = temp.seqNum();
+	    // Only add if not alread in list
+		// auto inList = find_if(prioritySend.begin(), prioritySend.end(), 
+		// 					  [&messageObj.seqNum()](const RDPMessage& obj) {
+		// 		return obj.seqNum() == messageObj.seqNum();})
+		// if (!inList)
+	    prioritySend.insert(prioritySend.begin(), messageObj);
 	}
-	ackNumEdit.unlock();
 	// ToDo: Remove self from list 
 	winSizeEdit.unlock();
+	ackNumEdit.unlock();
 	return bytesSent;
+
+	// if (expectedAckNum == temp.seqNum())
+	// {
+	// 	std::cout << "- Packet was acknowledged with expected ACK num" << std::endl;
+	// 	for (uint j = 0; j < messToSend.size(); j++)
+	// 	{
+	// 		if (messToSend[j].seqNum() == sendNext)
+	// 		{
+	// 			std::cout << "Removing ACK-ed packet from list " << std::endl;
+	// 			listEdit.lock();
+ //    			guessSent -= MAX_MESS_LEN;
+	// 			messToSend.erase(messToSend.begin() + j);
+	// 			listEdit.unlock();
+	// 		}
+	// 	}
+	// 	expectedAckNum += bytesSent;
+	// } else {
+	// 	std::cout << "Packet did NOT have expected ACK num " << expectedAckNum <<
+	// 			" it received " << temp.seqNum() << "Prioritizing" <<
+	// 			" the re-send of the expected packet" << std::endl;
+	// 	sendNext = temp.seqNum();
+	// }
+	// ackNumEdit.unlock();
+	// // ToDo: Remove self from list 
+	// winSizeEdit.unlock();
+	// return bytesSent;
 
 
     // return messageObj.seqNum();
@@ -307,27 +358,30 @@ void sendFile(std::string filename, int winSize, int seqNum){
 	    // while (i < fileLen && senderWindowSize <= FULL_WINDOW_SIZE && guessSent 
 				// < FULL_WINDOW_SIZE){
 	    // while (!messToSend.empty() && guessSent < winSize){
-	    while (!messToSend.empty() && senderWindowSize > 0){
+	    while (!messToSend.empty() && !prioritySend.empty() && senderWindowSize > 0){
 	    	guessSent += MAX_MESS_LEN;
 	    	std::cout << "Looping. File len " << fileLen << " data reply size " 
 	    			<< dataReplySize << " packet num " << i << std::endl;
-	    	if (sendNext != -1)
+	    	// Filter list
+	    	ackNumEdit.lock();
+	    	filterList(lastAck - lastSize);
+	    	ackNumEdit.unlock();
+	    	// Send item
+	    	if (!prioritySend.empty())
 	    	{
-	    		std::cout << "Received specific request for a packet. One " <<  
-	    				"must have arrived out of order. Sending... " << std::endl;
-				for (uint j = 0; j < messToSend.size(); j++)
-				{
-					if (messToSend[j].seqNum() == sendNext)
-					{
-						std::cout << "Found the packet that was lost. " <<
-								"Resending " << j << std::endl;
-				    	std::thread(sendAndWaitThread, messToSend[j]).detach();
-				    	sendNext = -1;
-					}
-				}	    		
+	    		std::cout << "Sending a priority packet " << std::endl;
+	    		listEdit.lock();
+	    		RDPMessage sendNext = prioritySend.front();
+	    		prioritySend.erase(prioritySend.begin());
+	    		listEdit.unlock();
+	    		std::thread(sendAndWaitThread, sendNext).detach();
 	    	} else {
 	    		std::cout << "Sending the expected next packet" << std::endl;
-		    	std::thread(sendAndWaitThread, messToSend[i]).detach();
+	    		listEdit.lock();
+	    		RDPMessage sendNext = messToSend.front();
+	    		messToSend.erase(messToSend.begin());
+	    		listEdit.unlock();
+	    		std::thread(sendAndWaitThread, sendNext).detach();
 	    	}
 		    // Wait 1 second between sends so there's a smaller chance of unordered
 		    std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -335,6 +389,34 @@ void sendFile(std::string filename, int winSize, int seqNum){
 		    // packetNum ++;
 	    }
 	}
+	//     while (!messToSend.empty() && senderWindowSize > 0){
+	//     	guessSent += MAX_MESS_LEN;
+	//     	std::cout << "Looping. File len " << fileLen << " data reply size " 
+	//     			<< dataReplySize << " packet num " << i << std::endl;
+	//     	if (sendNext != -1)
+	//     	{
+	//     		std::cout << "Received specific request for a packet. One " <<  
+	//     				"must have arrived out of order. Sending... " << std::endl;
+	// 			for (uint j = 0; j < messToSend.size(); j++)
+	// 			{
+	// 				if (messToSend[j].seqNum() == sendNext)
+	// 				{
+	// 					std::cout << "Found the packet that was lost. " <<
+	// 							"Resending " << j << std::endl;
+	// 			    	std::thread(sendAndWaitThread, messToSend[j]).detach();
+	// 			    	sendNext = -1;
+	// 				}
+	// 			}	    		
+	//     	} else {
+	//     		std::cout << "Sending the expected next packet" << std::endl;
+	// 	    	std::thread(sendAndWaitThread, messToSend[i]).detach();
+	//     	}
+	// 	    // Wait 1 second between sends so there's a smaller chance of unordered
+	// 	    std::this_thread::sleep_for(std::chrono::seconds(1));
+	// 	    i ++;
+	// 	    // packetNum ++;
+	//     }
+	// }
     // ToDo: Try making identical loop to re-join all the threads 
     // This means we need to re-send the package with the 
     // Change to while loop for infinite fix?
