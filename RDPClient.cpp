@@ -226,7 +226,12 @@ int sendAndWaitThread(RDPMessage messageObj){
     FD_ZERO(&fdRead); 
     FD_SET(sendSock, &fdRead); 
     int retval = select(0, &fdRead, NULL, NULL, &timeout); 
-    std::cout << "!!!! retval is " << retval << std::endl;
+    if (retval <= 0){
+	    std::cout << "Response timed out. Re-send..." << std::endl;
+	    // ToDo: Check if it's still in the list, it might have been already covered
+	    return sendAndWaitThread(messageObj);
+	} 
+    // std::cout << "!!!! retval is " << retval << std::endl;
     // Recursive error check sending
 	char buffer[1024];
 	socklen_t fromlen = sizeof(saOut);
@@ -269,11 +274,6 @@ int sendAndWaitThread(RDPMessage messageObj){
 	winSizeEdit.unlock();
 	return bytesSent;
 
-    if (retval <= 0){
-	    std::cout << "Response timed out. Re-send..." << std::endl;
-	    // ToDo: Check if it's still in the list, it might have been already covered
-	    return sendAndWaitThread(messageObj);
-	} 
 
     return messageObj.seqNum();
 }
