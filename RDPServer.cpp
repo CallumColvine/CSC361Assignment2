@@ -38,7 +38,9 @@ RDPMessage establishConnection(std::string recvIP, std::string recvPort){
 
 	memset(&saIn, 0, sizeof saIn);
 	saIn.sin_family = AF_INET;
-	saIn.sin_addr.s_addr = htonl(std::stoi(recvIP));
+	std::cout << "Setting my recv IP to " << recvIP << " and recv port to " <<
+			recvPort << std::endl;
+	saIn.sin_addr.s_addr = inet_addr(recvIP.c_str());
 	saIn.sin_port = htons(std::stoi(recvPort));
 	fromlen = sizeof(saIn);
 

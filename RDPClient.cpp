@@ -79,6 +79,8 @@ struct sockaddr_in initSa(std::string recvIP, std::string recvPort){
 	octets to the appropriate value */
 	// sa.sin_addr.s_addr = inet_addr("10.10.1.100");
 	// sa.sin_addr.s_addr = inet_addr("10.0.2.255");
+	std::cout << "Initializing the IP I'm sending TO to be " << recvIP << 
+			" and port to " << recvPort << std::endl;
 	sa.sin_addr.s_addr = inet_addr(recvIP.c_str());
 	/* sockets are unsigned shorts, htons(x) ensures x is in network byte order, 
 	set the port to 7654 */
