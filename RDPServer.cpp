@@ -153,8 +153,8 @@ void inputLoop(char* fullWindow, std::string filenameOut){
     while(receivedFIN == false){
         int recvSize = inputData();
         RDPMessage messageIn = inMessages.back();
-        std::cout << "Expected SEQ num " << mostRecentSeq + recvSize;
-        std::cout << " Received SEQ num " << messageIn.seqNum() + recvSize << std::endl;
+        std::cout << "Expected SEQ num " << mostRecentSeq;
+        std::cout << " Received SEQ num " << messageIn.seqNum()<< std::endl;
         // Case where we caught the next package in the sequence
         if (mostRecentSeq + recvSize == messageIn.seqNum() + recvSize)
         {

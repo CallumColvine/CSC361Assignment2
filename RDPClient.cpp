@@ -257,10 +257,6 @@ int sendAndWaitThread(RDPMessage messageObj){
         std::cout << "Response timed out. Re-send by prioritizing " <<
                 messageObj.seqNum() << std::endl;
         // Only add if not alread in list
-    // auto inList = find_if(prioritySend.begin(), prioritySend.end(),
-    //                      [&messageObj.seqNum()](const RDPMessage& obj) {
-    //      return obj.seqNum() == messageObj.seqNum();})
-    // if (!inList)
         prioritySend.insert(prioritySend.begin(), messageObj);
         return bytesSent;
     }
@@ -273,6 +269,7 @@ int sendAndWaitThread(RDPMessage messageObj){
             fprintf(stderr, "%s\n", strerror(errno));
             exit(EXIT_FAILURE);
     }
+    std::cout << "!!! RECEIVED REPLY FROM SERVER " << std::endl;
     RDPMessage temp;
     temp.unpackCString(buffer);
 
@@ -286,19 +283,15 @@ int sendAndWaitThread(RDPMessage messageObj){
     senderWindowSize = temp.size();
     if (expectedAckNum == temp.seqNum())
     {
-            std::cout << "- Packet was acknowledged with expected ACK num "
-                    << temp.ackNum() << std::endl;
-            filterList(expectedAckNum - bytesSent);
-            expectedAckNum += bytesSent;
+        std::cout << "- Packet was acknowledged with expected ACK num " << 
+                temp.ackNum() << std::endl;
+        filterList(expectedAckNum - bytesSent);
+        expectedAckNum += bytesSent;
     } else {
         std::cout << "- Packet unexpected ACK " << expectedAckNum <<
                 " it received " << temp.seqNum() << "Prioritizing" <<
                 " the re-send of the expected packet" << std::endl;
-            // Only add if not alread in list
-        // auto inList = find_if(prioritySend.begin(), prioritySend.end(),
-        //                      [&messageObj.seqNum()](const RDPMessage& obj) {
-        //      return obj.seqNum() == messageObj.seqNum();})
-        // if (!inList)
+        // Only add if not alread in list
         prioritySend.insert(prioritySend.begin(), messageObj);
     }
     // ToDo: Remove self from list
