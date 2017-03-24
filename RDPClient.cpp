@@ -245,7 +245,7 @@ int sendAndWaitThread(RDPMessage messageObj){
 	ackNumEdit.lock();
 	if (expectedAckNum == temp.seqNum())
 	{
-		std::cout << "Packet was acknowledged with expected ACK num" << std::endl;
+		std::cout << "- Packet was acknowledged with expected ACK num" << std::endl;
 		for (uint j = 0; j < messToSend.size(); j++)
 		{
 			if (messToSend[j].seqNum() == sendNext)
@@ -259,8 +259,9 @@ int sendAndWaitThread(RDPMessage messageObj){
 		}
 		expectedAckNum += (int)recsize;
 	} else {
-		std::cout << "Packet did NOT have expected ACK num. Prioritizing" <<
-				"the re-send of the expected packet" << std::endl;
+		std::cout << "Packet did NOT have expected ACK num " << expectedAckNum <<
+				" it received " << temp.seqNum() << "Prioritizing" <<
+				" the re-send of the expected packet" << std::endl;
 		sendNext = temp.seqNum();
 	}
 	ackNumEdit.unlock();
