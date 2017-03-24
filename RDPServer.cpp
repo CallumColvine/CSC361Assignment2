@@ -137,7 +137,7 @@ void sendAck(int outAckNum){
 	char fullReply[MAX_MESS_LEN];
     memset(fullReply, '\0', sizeof(fullReply));
     messageOut.toCString(fullReply);	
-	int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
+	int bytesSent = sendto(recvSock, fullReply, strlen(fullReply), 0,
             (struct sockaddr*)&saIn, sizeof saIn);
 	// messageOut.setSeqNum
 	std::cout << "Replied with num bytes: " << bytesSent << std::endl;
