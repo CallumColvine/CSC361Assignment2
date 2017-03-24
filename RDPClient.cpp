@@ -226,50 +226,51 @@ int sendAndWaitThread(RDPMessage messageObj){
     int retval = select(0, &fdRead, NULL, NULL, &timeout); 
     std::cout << "!!!! retval is " << retval << std::endl;
     // Recursive error check sending
+	char buffer[1024];
+	socklen_t fromlen = sizeof(saOut);
+	std::cout << "Setting thread to wait for ACK " << std::endl;
+	ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
+			(struct sockaddr*)&saOut, &fromlen);
+	std::cout << "Thread received reply!! " << std::endl;
+    if (recsize < 0) {
+        fprintf(stderr, "%s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+	}
+	winSizeEdit.lock();
+	RDPMessage temp;
+	temp.unpackCString(buffer);
+	senderWindowSize = temp.size();
+	ackNumEdit.lock();
+	if (expectedAckNum == temp.seqNum())
+	{
+		std::cout << "Packet was acknowledged with expected ACK num" << std::endl;
+		for (uint j = 0; j < messToSend.size(); j++)
+		{
+			if (messToSend[j].seqNum() == sendNext)
+			{
+				std::cout << "Removing ACK-ed packet from list " << std::endl;
+				listEdit.lock();
+				messToSend.erase(messToSend.begin() + j);
+				listEdit.unlock();
+			}
+		}
+		expectedAckNum += (int)recsize;
+	} else {
+		std::cout << "Packet did NOT have expected ACK num. Prioritizing" <<
+				"the re-send of the expected packet" << std::endl;
+		sendNext = temp.seqNum();
+	}
+	ackNumEdit.unlock();
+	// ToDo: Remove self from list 
+	winSizeEdit.unlock();
+	return bytesSent;
+	
     if (retval <= 0){
 	    std::cout << "Response timed out. Re-send..." << std::endl;
 	    // ToDo: Check if it's still in the list, it might have been already covered
 	    return sendAndWaitThread(messageObj);
-	} else { 
-    	char buffer[1024];
-		socklen_t fromlen = sizeof(saOut);
-		std::cout << "Setting thread to wait for ACK " << std::endl;
-		ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
-    			(struct sockaddr*)&saOut, &fromlen);
-		std::cout << "Thread received reply!! " << std::endl;
-	    if (recsize < 0) {
-	        fprintf(stderr, "%s\n", strerror(errno));
-	        exit(EXIT_FAILURE);
-    	}
-    	winSizeEdit.lock();
-    	RDPMessage temp;
-    	temp.unpackCString(buffer);
-    	senderWindowSize = temp.size();
-    	ackNumEdit.lock();
-    	if (expectedAckNum == temp.seqNum())
-    	{
-    		std::cout << "Packet was acknowledged with expected ACK num" << std::endl;
-			for (uint j = 0; j < messToSend.size(); j++)
-			{
-				if (messToSend[j].seqNum() == sendNext)
-				{
-					std::cout << "Removing ACK-ed packet from list " << std::endl;
-    				listEdit.lock();
-					messToSend.erase(messToSend.begin() + j);
-					listEdit.unlock();
-				}
-			}
-    		expectedAckNum += (int)recsize;
-    	} else {
-    		std::cout << "Packet did NOT have expected ACK num. Prioritizing" <<
-    				"the re-send of the expected packet" << std::endl;
-    		sendNext = temp.seqNum();
-    	}
-    	ackNumEdit.unlock();
-    	// ToDo: Remove self from list 
-    	winSizeEdit.unlock();
-    	return bytesSent;
-    } 
+	} 
+
     return messageObj.seqNum();
 }
 
