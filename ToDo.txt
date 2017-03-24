@@ -7,6 +7,7 @@ the first packet
 - Seq Num does not rollover as of now
 - Does not handle SYN timeouts
 - There is no lock around guessSent update
+- There is no lock around sendNext
 
 Implementation:
 - Proper outputs
