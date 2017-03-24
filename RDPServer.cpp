@@ -97,7 +97,6 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
     messageOut.toString(true);
     messageOut.toCString(messageString);
     std::cout << "Replying with " << messageString << std::endl;
-
 	/* create an Internet, datagram, socket using UDP */
 	sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (-1 == sendSock) {
@@ -105,18 +104,6 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	    printf("Error Creating Socket");
 	    exit(EXIT_FAILURE);
 	}
-	/* Zero out socket address */
-	// memset(&sa, 0, sizeof sa);
-	/* The address is IPv4 */
-	// sa.sin_family = AF_INET;
-	/* IPv4 adresses is a uint32_t, convert a string representation of the 
-	octets to the appropriate value */
-	// sa.sin_addr.s_addr = inet_addr("10.10.1.100");
-	// sa.sin_addr.s_addr = inet_addr("10.0.2.255");
-	// sa.sin_addr.s_addr = inet_addr("10.0.2.15");
-	/* sockets are unsigned shorts, htons(x) ensures x is in network byte order, 
-	set the port to 7654 */
-	// sa.sin_port = htons(8080);
 	bytes_sent = sendto(recvSock, messageString, strlen(messageString), 0,
 			(struct sockaddr*)&saIn, sizeof saIn);
 	if (bytes_sent < 0) {
@@ -146,8 +133,14 @@ int inputData(){
 void sendAck(int outAckNum){
 	RDPMessage messageOut;
 	messageOut.setACK(true);
-	messageOut.setSeqNum(outAckNum);		
+	messageOut.setSeqNum(outAckNum);	
+	char fullReply[MAX_MESS_LEN];
+    memset(fullReply, '\0', sizeof(fullReply));
+    messageOut.toCString(fullReply);	
+	int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
+            (struct sockaddr*)&saIn, sizeof saIn);
 	// messageOut.setSeqNum
+	std::cout << "Replied with num bytes: " << bytesSent << std::endl;
 }
 
 void inputLoop(char* fullWindow, std::string filenameOut){
