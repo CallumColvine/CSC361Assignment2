@@ -18,6 +18,8 @@ extern "C" {
 #include <mutex>
 #include <vector>
 #include <future>
+#include <chrono>
+#include <algorithm>
 
 #include "RDPMessage.h"
 
@@ -32,7 +34,8 @@ int HEADER_LENGTH = 0;
 RDPMessage prepSynMessage(){
 	RDPMessage message;
 	message.setSYN(true);
-	message.setSeqNum(rand() % message.seqNumLen());
+	message.setSeqNum(rand() % 100);
+	// message.setSeqNum(rand() % message.seqNumLen());
 	message.setAckNum(0);
 	message.setSize(0);
 	message.setMessage("");
@@ -175,13 +178,17 @@ template<typename R>
   bool is_ready(std::future<R> const& f)
   { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }
 
+std::vector<RDPMessage> messToSend;
 
 std::mutex listEdit;
 std::mutex winSizeEdit;
+std::mutex ackNumEdit;
 // Could be winSize / maxPackSize, ie. 10
 // volatile std::vector<RDPMessage> packWaitAckList;
-std::vector<RDPMessage> packWaitAckList;
+// std::vector<RDPMessage> packWaitAckList;
 volatile int senderWindowSize = FULL_WINDOW_SIZE;
+volatile int sendNext = -1;
+volatile int expectedAckNum = 0;
 // returns -1 on thread ACK
 // returns seqNum on timed out message
 int sendAndWaitThread(RDPMessage messageObj){
@@ -190,11 +197,11 @@ int sendAndWaitThread(RDPMessage messageObj){
     memset(fullReply, '\0', sizeof(fullReply));
     messageObj.toCString(fullReply);
 	// while (fileSent < fileLen){
-    listEdit.lock();
+    // listEdit.lock();
     int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
                     (struct sockaddr*)&saOut, sizeof saOut);
-	packWaitAckList.push_back(messageObj);
-	listEdit.unlock();
+	// packWaitAckList.push_back(messageObj);
+	// listEdit.unlock();
     // --- Wait for Reply Packet here ---
     std::cout << "Packet is sent " << bytesSent << " now waiting for ACK reply" 
     		<< std::endl;
@@ -224,13 +231,34 @@ int sendAndWaitThread(RDPMessage messageObj){
     	RDPMessage temp;
     	temp.unpackCString(buffer);
     	senderWindowSize = temp.size();
+    	ackNumEdit.lock();
+    	if (expectedAckNum == temp.seqNum())
+    	{
+    		std::cout << "Packet was acknowledged with expected ACK num" << std::endl;
+			for (uint j = 0; j < messToSend.size(); j++)
+			{
+				if (messToSend[j].seqNum() == sendNext)
+				{
+					std::cout << "Removing ACK-ed packet from list " << std::endl;
+    				listEdit.lock();
+					messToSend.erase(messToSend.begin() + j);
+					listEdit.unlock();
+				}
+			}
+    		expectedAckNum += (int)recsize;
+    	} else {
+    		std::cout << "Packet did NOT have expected ACK num. Prioritizing" <<
+    				"the re-send of the expected packet" << std::endl;
+    		sendNext = temp.seqNum();
+    	}
+    	ackNumEdit.unlock();
     	// ToDo: Remove self from list 
     	winSizeEdit.unlock();
-
     	return bytesSent;
     } 
     return messageObj.seqNum();
 }
+
 
 // winSize is the TOTAL receiver window
 void sendFile(std::string filename, int winSize, int seqNum){
@@ -240,30 +268,49 @@ void sendFile(std::string filename, int winSize, int seqNum){
     memset(fileContents, '\0', sizeof(fileContents));
 	std::string wholeFile = openFile(filename, fileContents, fileLen);
 	// Loop through file sending parts until their expected buffer is full
-	// ToDo: Necessary
-	// int fileSent = 0;
     int dataReplySize = fileLen;
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
     	dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
+    // Set the first expected ACK num == the initial seq num + the length of pack
+    expectedAckNum = seqNum + dataReplySize + HEADER_LENGTH;
+    for (int i = 0; i < fileLen; i += dataReplySize){
+	    std::string sendFilePart = wholeFile.substr(i, dataReplySize);
+	    RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
+	    messToSend.push_back(messageObj);
+	    seqNum += MAX_MESS_LEN;    
+    }
     int i = 0;
-    int packetNum = 0;
-    // bool recvBuffFull = false;
     int guessSent = 0;
     for (;;){
 		// While there's still file to go and while their buff is not full
-	    while (i < fileLen && senderWindowSize <= FULL_WINDOW_SIZE && guessSent < FULL_WINDOW_SIZE){
+	    // while (i < fileLen && senderWindowSize <= FULL_WINDOW_SIZE && guessSent 
+				// < FULL_WINDOW_SIZE){
+	    while (!messToSend.empty() && guessSent < winSize){
 	    	guessSent += MAX_MESS_LEN;
-	    	std::cout << "Looping. File len is " << fileLen << " data reply size " 
-	    			<< dataReplySize << " packet num " << packetNum << std::endl;
-		    std::string sendFilePart = wholeFile.substr(i, dataReplySize);
-		    RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
-			// std::promise<int> p;
-		    // std::future<int> p = std::async(sendAndWaitThread, messageObj);
-		    std::thread(sendAndWaitThread, messageObj).detach();
-		    // int retAck = p.get();
-		    // std::cout << "My thread promise is " << retAck << std::endl;
-		    i += dataReplySize;
-		    packetNum ++;
+	    	std::cout << "Looping. File len " << fileLen << " data reply size " 
+	    			<< dataReplySize << " packet num " << i << std::endl;
+	    	if (sendNext != -1)
+	    	{
+	    		std::cout << "Received specific request for a packet. One " <<  
+	    				"must have arrived out of order. Sending... " << std::endl;
+				for (uint j = 0; j < messToSend.size(); j++)
+				{
+					if (messToSend[j].seqNum() == sendNext)
+					{
+						std::cout << "Found the packet that was lost. " <<
+								"Resending " << j << std::endl;
+				    	std::thread(sendAndWaitThread, messToSend[j]).detach();
+				    	sendNext = -1;
+					}
+				}	    		
+	    	} else {
+	    		std::cout << "Sending the expected next packet" << std::endl;
+		    	std::thread(sendAndWaitThread, messToSend[i]).detach();
+	    	}
+		    // Wait 1 second between sends so there's a smaller chance of unordered
+		    std::this_thread::sleep_for(std::chrono::seconds(1));
+		    i ++;
+		    // packetNum ++;
 	    }
 	}
     // ToDo: Try making identical loop to re-join all the threads 

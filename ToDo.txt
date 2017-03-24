@@ -1,5 +1,10 @@
 ToDo:
 
-1. Establish connection between sender and receiver
-- Client sends message to receiver, receiver replies to client
-2. Send the full RDP header through the connection
+Bugs:
+- First packet has unexpected artifacts that write out to file at the end, but only 
+the first packet
+- Seq Num does not rollover as of now
+- Does not handle SYN timeouts
+
+Implementation:
+- Proper outputs

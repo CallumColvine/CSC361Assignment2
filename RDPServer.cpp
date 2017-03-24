@@ -14,14 +14,20 @@ extern "C" {
 #include <iostream>
 #include "RDPMessage.h"
 #include <fstream>
+#include <vector>
 // #include <string>
 
 // #define WINDOW_SIZE 		1024
-#define FULL_WINDOW_SIZE 	10240
 
 int sendSock;
 struct sockaddr_in saIn; 
 int recvSock;
+
+int mostRecentSeq;
+
+int amountDataWaiting = 0;
+std::vector<RDPMessage> inMessages;
+
 
 RDPMessage establishConnection(){
 	recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -54,6 +60,9 @@ RDPMessage establishConnection(){
 	// }
 	RDPMessage messageIn;
 	messageIn.unpackCString(buffer);
+	mostRecentSeq = messageIn.seqNum();
+	// Since we increment by 1 from the 2-way handshake
+	mostRecentSeq += 1;
 	return messageIn;
 }
 
@@ -69,6 +78,8 @@ RDPMessage prepareMessageOut(RDPMessage messageOut, RDPMessage messageIn){
 	// messageOut.updateLength();
 	return messageOut;
 }
+
+
 
 // Send ACK 
 void sendReply(RDPMessage messageIn, RDPMessage messageOut){
@@ -110,7 +121,7 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	}
 }
 
-RDPMessage inputData(){
+int inputData(){
 	ssize_t recsize;
 	socklen_t fromlen = sizeof(saIn);
 	char buffer[MAX_MESS_LEN];
@@ -121,26 +132,18 @@ RDPMessage inputData(){
         fprintf(stderr, "%s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    printf("datagram: %.*s\n", (int)recsize, buffer);
-    	// break;
-	// }
+    // printf("datagram: %.*s\n", (int)recsize, buffer);
 	RDPMessage messageIn;
 	messageIn.unpackCString(buffer);
-	return messageIn;
+	inMessages.push_back(messageIn);
+	return (int) recsize;
 }
 
-// void writeInputToFile(RDPMessage messageIn, std::ofstream out){
-// 	// std::cin >> messageIn;
-// 	out << messageIn;
-// 	// std::cout << "Writing to file... " << std::endl;
-// 	// char buff[messageIn.message().size()];
-// 	// buff = messageIn.message().c_str();
-// 	// // std::cout << "Write out buff is " << buff << std::endl;
-// 	// fwrite (buff, sizeof(char), sizeof(buff), pFile);
-// }
-
-void sendAck(){
-
+void sendAck(int outAckNum){
+	RDPMessage messageOut;
+	messageOut.setACK(true);
+	messageOut.setSeqNum(outAckNum);		
+	// messageOut.setSeqNum
 }
 
 void inputLoop(char* fullWindow, std::string filenameOut){
@@ -151,11 +154,26 @@ void inputLoop(char* fullWindow, std::string filenameOut){
 	out.open(filenameOut, std::ofstream::out | std::ofstream::app);
 	bool receivedFIN = false;
 	while(receivedFIN == false){
-		RDPMessage messageIn = inputData();
-		out << messageIn.message();
-		out.flush();
+		int recvSize = inputData();
+		RDPMessage messageIn = inMessages.back();
+		std::cout << "Expected SEQ num " << mostRecentSeq + recvSize;
+		std::cout << " Received SEQ num " << messageIn.seqNum() + recvSize << std::endl;
+		// Case where we caught the next package in the sequence
+		if (mostRecentSeq + recvSize == messageIn.seqNum() + recvSize)
+		{
+			std::cout << "Received the next expected message " << std::endl;
+			out << messageIn.message();
+			out.flush();
+			mostRecentSeq = mostRecentSeq + recvSize;
+			sendAck(mostRecentSeq);
+		} 
+		// Case where we caught a later than expected package
+		else if (mostRecentSeq + recvSize < messageIn.seqNum() + recvSize){
+			std::cout << "Received a message that's further than expected " << std::endl;
+			sendAck(mostRecentSeq);
+		} 
+		// 
 		// writeInputToFile(messageIn, out);
-		sendAck();
 	}
 	out.close();
 }

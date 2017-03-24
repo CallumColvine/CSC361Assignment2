@@ -85,12 +85,12 @@ class RDPMessage
     bool _syn = false;
     bool _fin = false;
     bool _rst = false;
-  	int _type;				// Type of packet. DAT, ACK, etc...
-  	int _seqNum;			// Sequence Number
-  	int _ackNum;			// Acknowledgement Number
-  	int _length;			// Payload length
-  	int _size;				// Window size
-  	std::string _message;
+  	int _type = 0;				// Type of packet. DAT, ACK, etc...
+  	int _seqNum = 0;			// Sequence Number
+  	int _ackNum = 0;			// Acknowledgement Number
+  	int _length = 0;			// Payload length
+  	int _size = 0;				// Window size
+  	std::string _message = "";
 };
 
 #endif
