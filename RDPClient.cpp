@@ -243,8 +243,8 @@ int sendAndWaitThread(RDPMessage messageObj){
     int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
                                     (struct sockaddr*)&saOut, sizeof saOut);
     // --- Wait for Reply Packet here ---
-    std::cout << "Packet is sent " << bytesSent << " now waiting for ACK reply"
-            << std::endl;
+    std::cout << "Packet sent. Bytes: " << bytesSent << " SEQ num " << 
+            messageObj.seqNum() << std::endl;
     // Set a timer with timeout == 3 seconds
     struct timeval timeout;
     timeout.tv_sec = 3;
