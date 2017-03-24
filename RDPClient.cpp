@@ -257,7 +257,7 @@ int sendAndWaitThread(RDPMessage messageObj){
 				listEdit.unlock();
 			}
 		}
-		expectedAckNum += (int)recsize;
+		expectedAckNum += bytesSent;
 	} else {
 		std::cout << "Packet did NOT have expected ACK num " << expectedAckNum <<
 				" it received " << temp.seqNum() << "Prioritizing" <<
