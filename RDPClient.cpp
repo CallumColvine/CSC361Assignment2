@@ -243,9 +243,9 @@ int sendAndWaitThread(RDPMessage messageObj){
         fprintf(stderr, "%s\n", strerror(errno));
         exit(EXIT_FAILURE);
 	}
-	winSizeEdit.lock();
 	RDPMessage temp;
 	temp.unpackCString(buffer);
+	winSizeEdit.lock();
 	senderWindowSize = temp.size();
 	ackNumEdit.lock();
 	if (expectedAckNum == temp.seqNum())
@@ -303,7 +303,8 @@ void sendFile(std::string filename, int winSize, int seqNum){
 		// While there's still file to go and while their buff is not full
 	    // while (i < fileLen && senderWindowSize <= FULL_WINDOW_SIZE && guessSent 
 				// < FULL_WINDOW_SIZE){
-	    while (!messToSend.empty() && guessSent < winSize){
+	    // while (!messToSend.empty() && guessSent < winSize){
+	    while (!messToSend.empty() && senderWindowSize > 0){
 	    	guessSent += MAX_MESS_LEN;
 	    	std::cout << "Looping. File len " << fileLen << " data reply size " 
 	    			<< dataReplySize << " packet num " << i << std::endl;
