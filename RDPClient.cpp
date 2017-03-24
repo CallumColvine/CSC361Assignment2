@@ -116,9 +116,9 @@ struct sockaddr_in createRecvSocket(std::string sendIP, std::string sendPort){
 	sa.sin_family = AF_INET;
 	sa.sin_addr.s_addr = inet_addr(sendIP.c_str());
 	sa.sin_port = htons(std::stoi(sendPort));
-	if (-1 == bind(recvSock, (struct sockaddr *)&sa, sizeof sa)){
+	if (-1 == bind(sendSock, (struct sockaddr *)&sa, sizeof sa)){
 	    perror("error bind failed");
-	    close(recvSock);
+	    close(sendSock);
 	    exit(EXIT_FAILURE);
 	}
 	return sa;
