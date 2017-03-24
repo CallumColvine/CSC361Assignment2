@@ -235,8 +235,6 @@ int sendAndWaitThread(RDPMessage messageObj){
 		socklen_t fromlen = sizeof(saOut);
 		std::cout << "Setting thread to wait for ACK " << std::endl;
 		ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
-    		(struct sockaddr*)&saOut, &fromlen);
-		ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
     			(struct sockaddr*)&saOut, &fromlen);
 		std::cout << "Thread received reply!! " << std::endl;
 	    if (recsize < 0) {
