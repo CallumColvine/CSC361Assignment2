@@ -15,6 +15,8 @@ extern "C" {
 #include "RDPMessage.h"
 #include <fstream>
 #include <vector>
+#include <thread>
+#include <ctime>
 // #include <string>
 
 // #define WINDOW_SIZE 		1024
@@ -185,6 +187,8 @@ int main(int argc, char const *argv[])
 	char fullWindow[FULL_WINDOW_SIZE];
 	RDPMessage messageIn = establishConnection(argv[1], argv[2]);
 	RDPMessage messageOut;
+	// Wait before reply, just for testing
+    std::this_thread::sleep_for(std::chrono::seconds(3));
 	sendReply(messageIn, messageOut);
 	inputLoop(fullWindow, argv[3]);
 	return 0;
