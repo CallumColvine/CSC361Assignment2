@@ -3,6 +3,7 @@ ToDo:
 Bugs:
 - First packet has unexpected artifacts that write out to file at the end, but only 
 the first packet
+	- UPDATE: not just first packet, this happens randomly somwhere in the file
 - Seq Num does not rollover as of now
 - Does not handle SYN timeouts
 - There is no lock around guessSent update
