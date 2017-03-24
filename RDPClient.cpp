@@ -108,12 +108,12 @@ void sendInitSyn(RDPMessage messageOut, std::string recvIP, std::string recvPort
 	}
 }
 
-struct sockaddr_in createRecvSocket(){
+struct sockaddr_in createRecvSocket(std::string sendIP, std::string sendPort){
 	struct sockaddr_in sa; 
 	memset(&sa, 0, sizeof sa);
 	sa.sin_family = AF_INET;
-	sa.sin_addr.s_addr = htonl(INADDR_ANY);
-	sa.sin_port = htons(8080);
+	sa.sin_addr.s_addr = htonl(std::stoi(sendIP));
+	sa.sin_port = htons(std::stoi(sendPort));
 	if (-1 == bind(recvSock, (struct sockaddr *)&sa, sizeof sa)) {
 	    perror("error bind failed");
 	    close(recvSock);
@@ -122,12 +122,12 @@ struct sockaddr_in createRecvSocket(){
 	return sa;
 }
 
-void recvInitAck(){
+void recvInitAck(std::string sendIP, std::string sendPort){
 	recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	char buffer[1024];
 	ssize_t recsize;
 	socklen_t fromlen;
-	saIn = createRecvSocket();
+	saIn = createRecvSocket(sendIP, sendPort);
 	fromlen = sizeof(saIn);
 
 	// for (;;) {
@@ -146,7 +146,7 @@ int establishConnection(RDPMessage messageOut, std::string sendIP,
 						 std::string sendPort, std::string recvIP, 
 						 std::string recvPort){
 	sendInitSyn(messageOut, recvIP, recvPort);
-	// recvInitAck();
+	recvInitAck(sendIP, sendPort);
 	// close(sock); /* close the socket */
 	// Should return the total recv window size
 	return 10240;

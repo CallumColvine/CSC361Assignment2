@@ -29,7 +29,7 @@ int amountDataWaiting = 0;
 std::vector<RDPMessage> inMessages;
 
 
-RDPMessage establishConnection(){
+RDPMessage establishConnection(std::string recvIP, std::string recvPort){
 	recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	char buffer[MAX_MESS_LEN];
     memset(buffer, '\0', sizeof(buffer));
@@ -38,8 +38,8 @@ RDPMessage establishConnection(){
 
 	memset(&saIn, 0, sizeof saIn);
 	saIn.sin_family = AF_INET;
-	saIn.sin_addr.s_addr = htonl(INADDR_ANY);
-	saIn.sin_port = htons(8080);
+	saIn.sin_addr.s_addr = htonl(std::stoi(recvIP));
+	saIn.sin_port = htons(std::stoi(recvPort));
 	fromlen = sizeof(saIn);
 
 	if (-1 == bind(recvSock, (struct sockaddr *)&saIn, sizeof saIn)) {
@@ -84,7 +84,7 @@ RDPMessage prepareMessageOut(RDPMessage messageOut, RDPMessage messageIn){
 // Send ACK 
 void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	messageOut = prepareMessageOut(messageOut, messageIn);
-  	struct sockaddr_in sa;
+  	// struct sockaddr_in sa;
 	int bytes_sent;
 	// char buffer[WINDOW_SIZE];
 	// ToDo: Edit copy here so it copies the whole message into the buffer
@@ -102,19 +102,19 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	    exit(EXIT_FAILURE);
 	}
 	/* Zero out socket address */
-	memset(&sa, 0, sizeof sa);
+	// memset(&sa, 0, sizeof sa);
 	/* The address is IPv4 */
-	sa.sin_family = AF_INET;
+	// sa.sin_family = AF_INET;
 	/* IPv4 adresses is a uint32_t, convert a string representation of the 
 	octets to the appropriate value */
 	// sa.sin_addr.s_addr = inet_addr("10.10.1.100");
 	// sa.sin_addr.s_addr = inet_addr("10.0.2.255");
-	sa.sin_addr.s_addr = inet_addr("10.0.2.15");
+	// sa.sin_addr.s_addr = inet_addr("10.0.2.15");
 	/* sockets are unsigned shorts, htons(x) ensures x is in network byte order, 
 	set the port to 7654 */
-	sa.sin_port = htons(8080);
+	// sa.sin_port = htons(8080);
 	bytes_sent = sendto(sendSock, messageString, strlen(messageString), 0,
-			(struct sockaddr*)&sa, sizeof sa);
+			(struct sockaddr*)&saIn, sizeof saIn);
 	if (bytes_sent < 0) {
 		printf("Error sending packet: %s\n", strerror(errno));
 	    exit(EXIT_FAILURE);
@@ -181,9 +181,9 @@ void inputLoop(char* fullWindow, std::string filenameOut){
 int main(int argc, char const *argv[])
 {
 	char fullWindow[FULL_WINDOW_SIZE];
-	RDPMessage messageIn = establishConnection();
+	RDPMessage messageIn = establishConnection(argv[1], argv[2]);
 	RDPMessage messageOut;
-	// sendReply(messageIn, messageOut);
+	sendReply(messageIn, messageOut);
 	inputLoop(fullWindow, argv[3]);
 	return 0;
 }
