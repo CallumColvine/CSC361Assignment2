@@ -200,6 +200,8 @@ std::mutex ackNumEdit;
 volatile int senderWindowSize = FULL_WINDOW_SIZE;
 volatile int sendNext = -1;
 volatile int expectedAckNum = 0;
+volatile int guessSent = 0;
+
 // returns -1 on thread ACK
 // returns seqNum on timed out message
 int sendAndWaitThread(RDPMessage messageObj){
@@ -250,6 +252,7 @@ int sendAndWaitThread(RDPMessage messageObj){
 			{
 				std::cout << "Removing ACK-ed packet from list " << std::endl;
 				listEdit.lock();
+    			guessSent -= MAX_MESS_LEN;
 				messToSend.erase(messToSend.begin() + j);
 				listEdit.unlock();
 			}
@@ -264,7 +267,7 @@ int sendAndWaitThread(RDPMessage messageObj){
 	// ToDo: Remove self from list 
 	winSizeEdit.unlock();
 	return bytesSent;
-	
+
     if (retval <= 0){
 	    std::cout << "Response timed out. Re-send..." << std::endl;
 	    // ToDo: Check if it's still in the list, it might have been already covered
@@ -295,7 +298,6 @@ void sendFile(std::string filename, int winSize, int seqNum){
 	    seqNum += MAX_MESS_LEN;    
     }
     int i = 0;
-    int guessSent = 0;
     for (;;){
 		// While there's still file to go and while their buff is not full
 	    // while (i < fileLen && senderWindowSize <= FULL_WINDOW_SIZE && guessSent 
