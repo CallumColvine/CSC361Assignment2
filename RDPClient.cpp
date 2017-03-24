@@ -125,16 +125,19 @@ struct sockaddr_in createRecvSocket(std::string sendIP, std::string sendPort){
 }
 
 void recvInitAck(std::string sendIP, std::string sendPort){
-	recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	// recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	char buffer[1024];
 	ssize_t recsize;
 	socklen_t fromlen;
-	saIn = createRecvSocket(sendIP, sendPort);
-	fromlen = sizeof(saIn);
+	// saIn = createRecvSocket(sendIP, sendPort);
+	// fromlen = sizeof(saIn);
+	fromlen = sizeof(saOut);
 
 	// for (;;) {
-    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
-    		(struct sockaddr*)&saIn, &fromlen);
+    // recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
+    // 		(struct sockaddr*)&saIn, &fromlen);
+    recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
+    		(struct sockaddr*)&saOut, &fromlen);
     if (recsize < 0) {
         fprintf(stderr, "%s\n", strerror(errno));
         exit(EXIT_FAILURE);
