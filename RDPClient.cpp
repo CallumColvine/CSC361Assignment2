@@ -123,14 +123,8 @@ void recvInitAck(std::string sendIP, std::string sendPort){
 	char buffer[1024];
 	// saIn = createRecvSocket(sendIP, sendPort);
 	socklen_t fromlen = sizeof(saOut);
-	// fromlen = sizeof(saOut);
-	// for (;;) {
     ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
     		(struct sockaddr*)&saOut, &fromlen);
-    // recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
-    // 		(struct sockaddr*)&saIn, &fromlen);
-    // recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
-    // 		(struct sockaddr*)&saOut, &fromlen);
     if (recsize < 0) {
         fprintf(stderr, "%s\n", strerror(errno));
         exit(EXIT_FAILURE);
@@ -230,15 +224,18 @@ int sendAndWaitThread(RDPMessage messageObj){
     FD_ZERO(&fdRead); 
     FD_SET(sendSock, &fdRead); 
     int retval = select(0, &fdRead, NULL, NULL, &timeout); 
+    std::cout << "!!!! retval is " << retval << std::endl;
     // Recursive error check sending
     if (retval <= 0){
 	    std::cout << "Response timed out. Re-send..." << std::endl;
 	    // ToDo: Check if it's still in the list, it might have been already covered
 	    return sendAndWaitThread(messageObj);
 	} else { 
-		std::cout << "Setting thread to wait for ACK " << std::endl;
     	char buffer[1024];
 		socklen_t fromlen = sizeof(saOut);
+		std::cout << "Setting thread to wait for ACK " << std::endl;
+		ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
+    		(struct sockaddr*)&saOut, &fromlen);
 		ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
     			(struct sockaddr*)&saOut, &fromlen);
 		std::cout << "Thread received reply!! " << std::endl;
