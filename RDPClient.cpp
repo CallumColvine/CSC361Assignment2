@@ -26,7 +26,6 @@ extern "C" {
 
 int sendSock;
 struct sockaddr_in saIn;
-int recvSock;
 struct sockaddr_in saOut;
 // Seems to be 36 atm (or 35, going with 36 though)
 int HEADER_LENGTH = 0;
@@ -62,11 +61,7 @@ RDPMessage prepFileMessage(int seqNum, int fileLen, std::string contents){
 }
 
 void initSendSock(){
-	sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (-1 == sendSock) {
-	    printf("Error Creating Socket");
-	    exit(EXIT_FAILURE);
-	}
+
 }
 
 struct sockaddr_in initSa(std::string recvIP, std::string recvPort){
@@ -79,8 +74,8 @@ struct sockaddr_in initSa(std::string recvIP, std::string recvPort){
 	octets to the appropriate value */
 	// sa.sin_addr.s_addr = inet_addr("10.10.1.100");
 	// sa.sin_addr.s_addr = inet_addr("10.0.2.255");
-	std::cout << "Initializing the IP I'm sending TO to be " << recvIP << 
-			" and port to " << recvPort << std::endl;
+	// std::cout << "Initializing the IP I'm sending TO to be " << recvIP << 
+	// 		" and port to " << recvPort << std::endl;
 	sa.sin_addr.s_addr = inet_addr(recvIP.c_str());
 	/* sockets are unsigned shorts, htons(x) ensures x is in network byte order, 
 	set the port to 7654 */
@@ -88,10 +83,9 @@ struct sockaddr_in initSa(std::string recvIP, std::string recvPort){
 	return sa;
 }
 
-void sendInitSyn(RDPMessage messageOut, std::string recvIP, std::string recvPort){
+void sendInitSyn(RDPMessage messageOut){
 	int bytes_sent;
-	initSendSock();
-	saOut = initSa(recvIP, recvPort);
+
 	// char buffer[1024];
 	// ToDo: Edit copy here so it copies the whole message into the buffer
 	char messageString[1024];
@@ -127,16 +121,13 @@ struct sockaddr_in createRecvSocket(std::string sendIP, std::string sendPort){
 void recvInitAck(std::string sendIP, std::string sendPort){
 	// recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	char buffer[1024];
-	ssize_t recsize;
-	socklen_t fromlen;
-	saIn = createRecvSocket(sendIP, sendPort);
-	fromlen = sizeof(saIn);
+	// saIn = createRecvSocket(sendIP, sendPort);
+	socklen_t fromlen = sizeof(saOut);
 	// fromlen = sizeof(saOut);
-
 	// for (;;) {
-    recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
-    		(struct sockaddr*)&saIn, &fromlen);
-    // recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
+    ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
+    		(struct sockaddr*)&saOut, &fromlen);
+    // recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
     // 		(struct sockaddr*)&saIn, &fromlen);
     // recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
     // 		(struct sockaddr*)&saOut, &fromlen);
@@ -149,10 +140,28 @@ void recvInitAck(std::string sendIP, std::string sendPort){
 	// }
 }
 
+void bindPort(std::string sendIP, std::string sendPort, std::string recvIP, 
+			  std::string recvPort){
+	sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (-1 == sendSock) {
+	    printf("Error Creating Socket");
+	    exit(EXIT_FAILURE);
+	}
+	saIn = initSa(sendIP, sendPort);
+	saOut = initSa(recvIP, recvPort);
+	if (-1 == bind(sendSock, (struct sockaddr *)&saIn, sizeof saIn)) {
+	    perror("error bind failed");
+	    close(sendSock);
+	    exit(EXIT_FAILURE);
+	}
+}
+
+
 int establishConnection(RDPMessage messageOut, std::string sendIP, 
 						 std::string sendPort, std::string recvIP, 
 						 std::string recvPort){
-	sendInitSyn(messageOut, recvIP, recvPort);
+	bindPort(sendIP, sendPort, recvIP, recvPort);
+	sendInitSyn(messageOut);
 	std::cout << "Init SYN sent, waiting for response... " << std::endl;
 	recvInitAck(recvIP, recvPort);
 	// close(sock); /* close the socket */
@@ -219,7 +228,7 @@ int sendAndWaitThread(RDPMessage messageObj){
     timeout.tv_usec = 0; 
     fd_set fdRead;
     FD_ZERO(&fdRead); 
-    FD_SET(recvSock, &fdRead); 
+    FD_SET(sendSock, &fdRead); 
     int retval = select(0, &fdRead, NULL, NULL, &timeout); 
     // Recursive error check sending
     if (retval <= 0){
@@ -228,9 +237,9 @@ int sendAndWaitThread(RDPMessage messageObj){
 	    return sendAndWaitThread(messageObj);
 	} else { 
     	char buffer[1024];
-		socklen_t fromlen = sizeof(saIn);
-		ssize_t recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
-    			(struct sockaddr*)&saIn, &fromlen);
+		socklen_t fromlen = sizeof(saOut);
+		ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
+    			(struct sockaddr*)&saOut, &fromlen);
 	    if (recsize < 0) {
 	        fprintf(stderr, "%s\n", strerror(errno));
 	        exit(EXIT_FAILURE);
