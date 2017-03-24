@@ -236,10 +236,12 @@ int sendAndWaitThread(RDPMessage messageObj){
 	    // ToDo: Check if it's still in the list, it might have been already covered
 	    return sendAndWaitThread(messageObj);
 	} else { 
+		std::cout << "Setting thread to wait for ACK " << std::endl;
     	char buffer[1024];
 		socklen_t fromlen = sizeof(saOut);
 		ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0, 
     			(struct sockaddr*)&saOut, &fromlen);
+		std::cout << "Thread received reply!! " << std::endl;
 	    if (recsize < 0) {
 	        fprintf(stderr, "%s\n", strerror(errno));
 	        exit(EXIT_FAILURE);
