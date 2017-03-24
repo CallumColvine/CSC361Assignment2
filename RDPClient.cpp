@@ -148,7 +148,8 @@ int establishConnection(RDPMessage messageOut, std::string sendIP,
 						 std::string sendPort, std::string recvIP, 
 						 std::string recvPort){
 	sendInitSyn(messageOut, recvIP, recvPort);
-	recvInitAck(sendIP, sendPort);
+	std::cout << "Init SYN sent, waiting for response... " << std::endl;
+	recvInitAck(recvIP, recvPort);
 	// close(sock); /* close the socket */
 	// Should return the total recv window size
 	return 10240;
