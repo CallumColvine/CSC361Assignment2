@@ -5,7 +5,7 @@ extern "C" {
 	#include <sys/socket.h>
 	#include <sys/types.h>
 	#include <netinet/in.h>
-	#include <unistd.h> /* for close() for socket */ 
+	#include <unistd.h> /* for close() for socket */
 	#include <stdlib.h>
 	#include <arpa/inet.h>
 
@@ -22,7 +22,7 @@ extern "C" {
 // #define WINDOW_SIZE 		1024
 
 int sendSock;
-struct sockaddr_in saIn; 
+struct sockaddr_in saIn;
 int recvSock;
 
 int mostRecentSeq;
@@ -53,7 +53,7 @@ RDPMessage establishConnection(std::string recvIP, std::string recvPort){
 	}
 
 	// for (;;) {
-    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
+    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0,
     		(struct sockaddr*)&saIn, &fromlen);
     if (recsize < 0) {
         fprintf(stderr, "%s\n", strerror(errno));
@@ -71,7 +71,7 @@ RDPMessage establishConnection(std::string recvIP, std::string recvPort){
 }
 
 RDPMessage prepareMessageOut(RDPMessage messageOut, RDPMessage messageIn){
-	std::cout << "message in was" << std::endl; 
+	std::cout << "message in was" << std::endl;
 	messageIn.toString(true);
 	messageOut.setACK(true);
 	messageOut.setSeqNum(messageIn.seqNum());
@@ -85,7 +85,7 @@ RDPMessage prepareMessageOut(RDPMessage messageOut, RDPMessage messageIn){
 
 
 
-// Send ACK 
+// Send ACK
 void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	messageOut = prepareMessageOut(messageOut, messageIn);
   	// struct sockaddr_in sa;
@@ -100,7 +100,7 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
 	/* create an Internet, datagram, socket using UDP */
 	sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (-1 == sendSock) {
-	    // if socket failed to initialize, exit 
+	    // if socket failed to initialize, exit
 	    printf("Error Creating Socket");
 	    exit(EXIT_FAILURE);
 	}
@@ -117,7 +117,7 @@ int inputData(){
 	socklen_t fromlen = sizeof(saIn);
 	char buffer[MAX_MESS_LEN];
     memset(buffer, '\0', sizeof(buffer));
-    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0, 
+    recsize = recvfrom(recvSock, (void*)buffer, sizeof buffer, 0,
     		(struct sockaddr*)&saIn, &fromlen);
     if (recsize < 0) {
         fprintf(stderr, "%s\n", strerror(errno));
@@ -133,10 +133,10 @@ int inputData(){
 void sendAck(int outAckNum){
 	RDPMessage messageOut;
 	messageOut.setACK(true);
-	messageOut.setSeqNum(outAckNum);	
+	messageOut.setSeqNum(outAckNum);
 	char fullReply[MAX_MESS_LEN];
     memset(fullReply, '\0', sizeof(fullReply));
-    messageOut.toCString(fullReply);	
+    messageOut.toCString(fullReply);
 	int bytesSent = sendto(recvSock, fullReply, strlen(fullReply), 0,
             (struct sockaddr*)&saIn, sizeof saIn);
 	// messageOut.setSeqNum
@@ -158,18 +158,19 @@ void inputLoop(char* fullWindow, std::string filenameOut){
 		// Case where we caught the next package in the sequence
 		if (mostRecentSeq + recvSize == messageIn.seqNum() + recvSize)
 		{
+
 			std::cout << "Received the next expected message " << std::endl;
 			out << messageIn.message();
 			out.flush();
 			mostRecentSeq = mostRecentSeq + recvSize;
 			sendAck(mostRecentSeq);
-		} 
+		}
 		// Case where we caught a later than expected package
 		else if (mostRecentSeq + recvSize < messageIn.seqNum() + recvSize){
 			std::cout << "Received a message that's further than expected " << std::endl;
 			sendAck(mostRecentSeq);
-		} 
-		// 
+		}
+		//
 		// writeInputToFile(messageIn, out);
 	}
 	out.close();
