@@ -158,7 +158,6 @@ void inputLoop(char* fullWindow, std::string filenameOut){
         // Case where we caught the next package in the sequence
         if (mostRecentSeq + recvSize == messageIn.seqNum() + recvSize)
         {
-
             std::cout << "Received the next expected message " << std::endl;
             out << messageIn.message();
             out.flush();
