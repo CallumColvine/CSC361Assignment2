@@ -255,7 +255,7 @@ int sendAndWaitThread(RDPMessage messageObj){
     int retval = select(0, &fdRead, NULL, NULL, &timeout);
     char buffer[1024];
     socklen_t fromlen = sizeof(saOut);
-    std::cout << "Setting thread to wait for ACK " << std::endl;
+    std::cout << "Setting thread to wait for ACK " << messageObj.seqNum() << std::endl;
     ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0,
             (struct sockaddr*)&saOut, &fromlen);
     if (recsize < 0) {
@@ -359,6 +359,7 @@ void sendFile(std::string filename, int winSize, int seqNum){
                 // < FULL_WINDOW_SIZE){
             // while (!messToSend.empty() && guessSent < winSize){
             while (((!messToSend.empty()) || (!prioritySend.empty())) && (senderWindowSize > 0)){
+                senderWindowSize -= MAX_MESS_LEN;
                 guessSent += MAX_MESS_LEN;
                 std::cout << "Looping. File len " << fileLen << " data reply size "
                         << dataReplySize << " packet num " << i << std::endl;
