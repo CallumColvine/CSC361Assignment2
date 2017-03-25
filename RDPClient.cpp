@@ -247,14 +247,12 @@ int sendAndWaitThread(RDPMessage messageObj){
             messageObj.seqNum() << std::endl;
     // Set a timer with timeout == 3 seconds
     struct timeval timeout;
-    timeout.tv_sec = 15;
+    timeout.tv_sec = 3;
     timeout.tv_usec = 0;
     fd_set fdRead;
     FD_ZERO(&fdRead);
     FD_SET(sendSock, &fdRead);
-    char buffer[1024];
-
-    int retval = select(0, &fdRead, NULL, NULL, &timeout);
+    int retval = select(1, &fdRead, NULL, NULL, &timeout);
     if (retval <= 0){
         std::cout << "Response timed out. Re-send by prioritizing " <<
                 messageObj.seqNum() << std::endl;
@@ -264,6 +262,7 @@ int sendAndWaitThread(RDPMessage messageObj){
         listEdit.unlock();
         return bytesSent;
     } else {
+        char buffer[1024];
         socklen_t fromlen = sizeof(saOut);
         std::cout << "Setting thread to wait for ACK " << messageObj.seqNum() << std::endl;
         ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0,
