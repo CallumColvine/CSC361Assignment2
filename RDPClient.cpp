@@ -297,13 +297,24 @@ int sendAndWaitThread(RDPMessage messageObj){
                     temp.ackNum() << std::endl;
             filterList(expectedAckNum - bytesSent);
             expectedAckNum += bytesSent;
-        } else {
-            std::cout << "- Packet unexpected ACK " << expectedAckNum <<
-                    " it received " << temp.seqNum() << "Prioritizing" <<
-                    " the re-send of the expected packet" << std::endl;
-            // Only add if not alread in list
+        } else if (expectedAckNum - bytesSent > messageObj.seqNum()){
+            std::cout << "Packet already ACK-ed. Letting it go" << std::endl;
+        }
+        // It ACK-ed back asking for this packet
+        else if (expectedAckNum - bytesSent == messageObj.seqNum()){
             prioritySend.insert(prioritySend.begin(), messageObj);
         }
+        // else if (expectedAckNum > temp.seqNum()) {
+        //     std::cout << "- Packet unexpected ACK " << expectedAckNum <<
+        //             " it received " << temp.seqNum() << "Prioritizing" <<
+        //             " the re-send of the expected packet" << std::endl;
+        //     // Only add if not alread in list
+        //     for (uint i = 0; i < prioritySend.size(); i++)
+        //         if (prioritySend[i].seqNum() == ackNum)
+        //             prioritySend.erase(prioritySend.begin() + i);
+        // prioritySend.insert(prioritySend.begin(), messageObj);
+        // }
+            
         // ToDo: Remove self from list
         winSizeEdit.unlock();
         ackNumEdit.unlock();
