@@ -30,6 +30,8 @@ int mostRecentSeq;
 int amountDataWaiting = 0;
 std::vector<RDPMessage> inMessages;
 
+int curWindowSize = FULL_WINDOW_SIZE;
+
 
 RDPMessage establishConnection(std::string recvIP, std::string recvPort){
     recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -130,10 +132,11 @@ int inputData(){
     return (int) recsize;
 }
 
-void sendAck(int outAckNum){
+void sendAck(int outAckNum, int newWinSize){
     RDPMessage messageOut;
     messageOut.setACK(true);
     messageOut.setSeqNum(outAckNum);
+    messageOut.setSize(newWinSize);
     char fullReply[MAX_MESS_LEN];
     memset(fullReply, '\0', sizeof(fullReply));
     messageOut.toCString(fullReply);
@@ -159,15 +162,17 @@ void inputLoop(char* fullWindow, std::string filenameOut){
         if (mostRecentSeq + recvSize == messageIn.seqNum() + recvSize)
         {
             std::cout << "Received the next expected message " << std::endl;
+            curWindowSize -= recvSize;
+            sendAck(mostRecentSeq, curWindowSize);
             out << messageIn.message();
             out.flush();
+            curWindowSize += recvSize;
             mostRecentSeq = mostRecentSeq + recvSize;
-            sendAck(mostRecentSeq);
         }
         // Case where we caught a later than expected package
         else if (mostRecentSeq + recvSize < messageIn.seqNum() + recvSize){
-            std::cout << "Received a message that's further than expected " << std::endl;
-            sendAck(mostRecentSeq);
+            std::cout << "Received that's further than expected asking for" << std::endl;
+            sendAck(mostRecentSeq, curWindowSize);
         }
         //
         // writeInputToFile(messageIn, out);
