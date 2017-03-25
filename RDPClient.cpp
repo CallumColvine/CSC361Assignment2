@@ -246,14 +246,14 @@ int sendAndWaitThread(RDPMessage messageObj){
     std::cout << "Packet sent. Bytes: " << bytesSent << " SEQ num " << 
             messageObj.seqNum() << std::endl;
     // Set a timer with timeout == 3 seconds
+    fd_set set;
     struct timeval timeout;
+    FD_ZERO(&set);
+    FD_SET(sendSock, &set);
     timeout.tv_sec = 3;
     timeout.tv_usec = 0;
-    fd_set fdRead;
-    FD_ZERO(&fdRead);
-    FD_SET(sendSock, &fdRead);
-    int retval = select(sendSock + 1, &fdRead, NULL, NULL, &timeout);
-    if (retval < 0){
+    int retval = select(sendSock + 1, &set, NULL, NULL, &timeout);
+    if (retval == 0){
         std::cout << "retval is " << retval << std::endl;
         std::cout << "Response timed out. Re-send by prioritizing " <<
                 messageObj.seqNum() << std::endl;
@@ -262,6 +262,9 @@ int sendAndWaitThread(RDPMessage messageObj){
         prioritySend.insert(prioritySend.begin(), messageObj);
         listEdit.unlock();
         return bytesSent;
+    } 
+    else if(retval < 0) {
+        perror("Error with select()");
     } else {
         std::cout << "retval is " << retval << std::endl;
         char buffer[1024];
