@@ -368,7 +368,8 @@ void sendFile(std::string filename, int winSize, int seqNum){
             // while (i < fileLen && senderWindowSize <= FULL_WINDOW_SIZE && guessSent
                 // < FULL_WINDOW_SIZE){
             // while (!messToSend.empty() && guessSent < winSize){
-            while (((!messToSend.empty()) || (!prioritySend.empty())) && (senderWindowSize > 0)){
+            // while (((!messToSend.empty()) || (!prioritySend.empty())) && (senderWindowSize > 0)){
+            while (((!messToSend.empty()) || (!prioritySend.empty()))){
                 senderWindowSize -= MAX_MESS_LEN;
                 guessSent += MAX_MESS_LEN;
                 std::cout << "Looping. File len " << fileLen << " data reply size "
