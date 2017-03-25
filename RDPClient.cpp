@@ -212,6 +212,7 @@ std::vector<RDPMessage> prioritySend;
 std::mutex listEdit;
 std::mutex winSizeEdit;
 std::mutex ackNumEdit;
+std::mutex guessEdit;
 // Could be winSize / maxPackSize, ie. 10
 // volatile std::vector<RDPMessage> packWaitAckList;
 // std::vector<RDPMessage> packWaitAckList;
@@ -261,6 +262,9 @@ int sendAndWaitThread(RDPMessage messageObj){
         listEdit.lock();
         prioritySend.insert(prioritySend.begin(), messageObj);
         listEdit.unlock();
+        guessEdit.lock();
+        guessSent += MAX_MESS_LEN;
+        guessEdit.unlock();
         return bytesSent;
     } 
     else if(retval < 0) {
@@ -291,19 +295,31 @@ int sendAndWaitThread(RDPMessage messageObj){
         }
         winSizeEdit.lock();
         senderWindowSize = temp.size();
-        if (expectedAckNum == temp.seqNum())
-        {
-            std::cout << "- Packet was acknowledged with expected ACK num " << 
-                    temp.ackNum() << std::endl;
-            filterList(expectedAckNum - bytesSent);
-            expectedAckNum += bytesSent;
-        } else if (expectedAckNum - bytesSent > messageObj.seqNum()){
-            std::cout << "Packet already ACK-ed. Letting it go" << std::endl;
-        }
-        // It ACK-ed back asking for this packet
-        else if (expectedAckNum - bytesSent == messageObj.seqNum()){
+
+
+        if (messageObj.seqNum() > temp.seqNum()){
+            messToSend.insert(prioritySend.begin(), messageObj);                   
+        } else if (messageObj.seqNum() == temp.seqNum ()) {
             prioritySend.insert(prioritySend.begin(), messageObj);
+        } else {
+            std::cout << "This packet was less than the last ACK" << std::endl;
         }
+
+
+        // if (expectedAckNum == temp.seqNum())
+        // {
+        //     std::cout << "- Packet was acknowledged with expected ACK num " << 
+        //             temp.ackNum() << std::endl;
+        //     filterList(expectedAckNum - bytesSent);
+        //     expectedAckNum += bytesSent;
+        // } else if (expectedAckNum - bytesSent > messageObj.seqNum()){
+        //     std::cout << "Packet already ACK-ed. Letting it go" << std::endl;
+        // }
+        // // It ACK-ed back asking for this packet
+        // else if (expectedAckNum - bytesSent == messageObj.seqNum()){
+        //     std::cout << ""
+        //     prioritySend.insert(prioritySend.begin(), messageObj);
+        // }
         // else if (expectedAckNum > temp.seqNum()) {
         //     std::cout << "- Packet unexpected ACK " << expectedAckNum <<
         //             " it received " << temp.seqNum() << "Prioritizing" <<
@@ -320,6 +336,9 @@ int sendAndWaitThread(RDPMessage messageObj){
         ackNumEdit.unlock();
     }
     // else {
+    guessEdit.lock();
+    guessSent += MAX_MESS_LEN;
+    guessEdit.unlock();
     return bytesSent;
 
     // if (expectedAckNum == temp.seqNum())
@@ -374,13 +393,14 @@ void sendFile(std::string filename, int winSize, int seqNum){
             seqNum += MAX_MESS_LEN;
         }
         int i = 0;
+        guessSent = FULL_WINDOW_SIZE;
         for (;;){
         // While there's still file to go and while their buff is not full
             // while (i < fileLen && senderWindowSize <= FULL_WINDOW_SIZE && guessSent
                 // < FULL_WINDOW_SIZE){
             // while (!messToSend.empty() && guessSent < winSize){
             // while (((!messToSend.empty()) || (!prioritySend.empty())) && (senderWindowSize > 0)){
-            while (((!messToSend.empty()) || (!prioritySend.empty()))){
+            while (((!messToSend.empty()) || (!prioritySend.empty())) && guessSent > 0){
                 senderWindowSize -= MAX_MESS_LEN;
                 guessSent += MAX_MESS_LEN;
                 std::cout << "Looping. File len " << fileLen << " data reply size "
