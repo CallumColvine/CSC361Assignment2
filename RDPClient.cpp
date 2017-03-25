@@ -279,7 +279,7 @@ int sendAndWaitThread(RDPMessage messageObj){
         std::cout << "!!! RECEIVED REPLY FROM SERVER " << std::endl;
         RDPMessage temp;
         temp.unpackCString(buffer);
-        temp.toString();
+        temp.toString(false);
         ackNumEdit.lock();
         if (temp.seqNum() > lastAck)
         {
