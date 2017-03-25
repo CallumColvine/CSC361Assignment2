@@ -402,7 +402,7 @@ void sendFile(std::string filename, int winSize, int seqNum){
             // while (((!messToSend.empty()) || (!prioritySend.empty())) && (senderWindowSize > 0)){
             while (((!messToSend.empty()) || (!prioritySend.empty())) && guessSent > 0){
                 senderWindowSize -= MAX_MESS_LEN;
-                guessSent += MAX_MESS_LEN;
+                guessSent -= MAX_MESS_LEN;
                 std::cout << "Looping. File len " << fileLen << " data reply size "
                         << dataReplySize << " packet num " << i << std::endl;
                 // Filter list
