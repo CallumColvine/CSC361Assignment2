@@ -255,7 +255,7 @@ int sendAndWaitThread(RDPMessage messageObj){
     timeout.tv_usec = 0;
     int retval = select(sendSock + 1, &set, NULL, NULL, &timeout);
     if (retval == 0){
-        std::cout << "retval is " << retval << std::endl;
+        // std::cout << "retval is " << retval << std::endl;
         std::cout << "Response timed out. Re-send by prioritizing " <<
                 messageObj.seqNum() << std::endl;
         // Only add if not alread in list
@@ -270,7 +270,7 @@ int sendAndWaitThread(RDPMessage messageObj){
     else if(retval < 0) {
         perror("Error with select()");
     } else {
-        std::cout << "retval is " << retval << std::endl;
+        // std::cout << "retval is " << retval << std::endl;
         char buffer[1024];
         socklen_t fromlen = sizeof(saOut);
         std::cout << "Setting thread to wait for ACK " << messageObj.seqNum() << std::endl;
@@ -407,12 +407,12 @@ void sendFile(std::string filename, int winSize, int seqNum){
                         << dataReplySize << " packet num " << i << std::endl;
                 // Filter list
                 ackNumEdit.lock();
-                filterList(lastAck - lastSize);
+                // filterList(lastAck - lastSize);
                 ackNumEdit.unlock();
                 // Send item
                 if (!prioritySend.empty())
                 {
-                    std::cout << "Sending a priority packet " << std::endl;
+                    // std::cout << "Sending a priority packet " << std::endl;
                     listEdit.lock();
                     RDPMessage sendNext = prioritySend.front();
                     prioritySend.erase(prioritySend.begin());
@@ -427,7 +427,7 @@ void sendFile(std::string filename, int winSize, int seqNum){
                     std::thread(sendAndWaitThread, sendNext).detach();
                 }
                 // Wait 1 second between sends so there's a smaller chance of unordered
-                // std::this_thread::sleep_for(std::chrono::seconds(1));
+                std::this_thread::sleep_for(std::chrono::seconds(1));
                 i ++;
                 // packetNum ++;
             }
