@@ -253,15 +253,6 @@ int sendAndWaitThread(RDPMessage messageObj){
     FD_ZERO(&fdRead);
     FD_SET(sendSock, &fdRead);
     int retval = select(0, &fdRead, NULL, NULL, &timeout);
-    if (retval <= 0){
-        std::cout << "Response timed out. Re-send by prioritizing " <<
-                messageObj.seqNum() << std::endl;
-        // Only add if not alread in list
-        listEdit.lock();
-        prioritySend.insert(prioritySend.begin(), messageObj);
-        listEdit.unlock();
-        return bytesSent;
-    }
     char buffer[1024];
     socklen_t fromlen = sizeof(saOut);
     std::cout << "Setting thread to wait for ACK " << std::endl;
@@ -270,6 +261,15 @@ int sendAndWaitThread(RDPMessage messageObj){
     if (recsize < 0) {
             fprintf(stderr, "%s\n", strerror(errno));
             exit(EXIT_FAILURE);
+    }
+    if (retval <= 0){
+        std::cout << "Response timed out. Re-send by prioritizing " <<
+                messageObj.seqNum() << std::endl;
+        // Only add if not alread in list
+        listEdit.lock();
+        prioritySend.insert(prioritySend.begin(), messageObj);
+        listEdit.unlock();
+        return bytesSent;
     }
     std::cout << "!!! RECEIVED REPLY FROM SERVER " << std::endl;
     RDPMessage temp;
