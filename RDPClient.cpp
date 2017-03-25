@@ -247,13 +247,21 @@ int sendAndWaitThread(RDPMessage messageObj){
             messageObj.seqNum() << std::endl;
     // Set a timer with timeout == 3 seconds
     struct timeval timeout;
-    timeout.tv_sec = 3;
+    timeout.tv_sec = 15;
     timeout.tv_usec = 0;
     fd_set fdRead;
     FD_ZERO(&fdRead);
     FD_SET(sendSock, &fdRead);
     int retval = select(0, &fdRead, NULL, NULL, &timeout);
-    std::cout << "retval is " << retval << std::endl;
+    if (retval <= 0){
+        std::cout << "Response timed out. Re-send by prioritizing " <<
+                messageObj.seqNum() << std::endl;
+        // Only add if not alread in list
+        listEdit.lock();
+        prioritySend.insert(prioritySend.begin(), messageObj);
+        listEdit.unlock();
+        return bytesSent;
+    }
     char buffer[1024];
     socklen_t fromlen = sizeof(saOut);
     std::cout << "Setting thread to wait for ACK " << std::endl;
@@ -263,44 +271,36 @@ int sendAndWaitThread(RDPMessage messageObj){
             fprintf(stderr, "%s\n", strerror(errno));
             exit(EXIT_FAILURE);
     }
-    if (retval > 0){
-        std::cout << "!!! RECEIVED REPLY FROM SERVER " << std::endl;
-        RDPMessage temp;
-        temp.unpackCString(buffer);
+    std::cout << "!!! RECEIVED REPLY FROM SERVER " << std::endl;
+    RDPMessage temp;
+    temp.unpackCString(buffer);
 
-        ackNumEdit.lock();
-        if (temp.seqNum() > lastAck)
-        {
-            lastAck = temp.seqNum();
-            lastSize = bytesSent;
-        }
-        winSizeEdit.lock();
-        senderWindowSize = temp.size();
-        if (expectedAckNum == temp.seqNum())
-        {
-            std::cout << "- Packet was acknowledged with expected ACK num " << 
-                    temp.ackNum() << std::endl;
-            filterList(expectedAckNum - bytesSent);
-            expectedAckNum += bytesSent;
-        } else {
-            std::cout << "- Packet unexpected ACK " << expectedAckNum <<
-                    " it received " << temp.seqNum() << "Prioritizing" <<
-                    " the re-send of the expected packet" << std::endl;
-            // Only add if not alread in list
-            prioritySend.insert(prioritySend.begin(), messageObj);
-        }
-        // ToDo: Remove self from list
-        winSizeEdit.unlock();
-        ackNumEdit.unlock();
-        return bytesSent;
+    ackNumEdit.lock();
+    if (temp.seqNum() > lastAck)
+    {
+        lastAck = temp.seqNum();
+        lastSize = bytesSent;
     }
-    else {
-        std::cout << "Response timed out. Re-send by prioritizing " <<
-                messageObj.seqNum() << std::endl;
+    winSizeEdit.lock();
+    senderWindowSize = temp.size();
+    if (expectedAckNum == temp.seqNum())
+    {
+        std::cout << "- Packet was acknowledged with expected ACK num " << 
+                temp.ackNum() << std::endl;
+        filterList(expectedAckNum - bytesSent);
+        expectedAckNum += bytesSent;
+    } else {
+        std::cout << "- Packet unexpected ACK " << expectedAckNum <<
+                " it received " << temp.seqNum() << "Prioritizing" <<
+                " the re-send of the expected packet" << std::endl;
         // Only add if not alread in list
         prioritySend.insert(prioritySend.begin(), messageObj);
-        return bytesSent;
     }
+    // ToDo: Remove self from list
+    winSizeEdit.unlock();
+    ackNumEdit.unlock();
+    return bytesSent;
+
     // if (expectedAckNum == temp.seqNum())
     // {
     //  std::cout << "- Packet was acknowledged with expected ACK num" << std::endl;
