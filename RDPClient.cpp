@@ -279,10 +279,10 @@ int sendAndWaitThread(RDPMessage messageObj){
         std::cout << "!!! RECEIVED REPLY FROM SERVER " << std::endl;
         RDPMessage temp;
         temp.unpackCString(buffer);
-        std::cout << "just sent " << std::endl;
-        messageObj.toString(true);
-        std::cout << "and received " << std::endl;
-        temp.toString(true);
+        // std::cout << "just sent " << std::endl;
+        // messageObj.toString(true);
+        // std::cout << "and received " << std::endl;
+        // temp.toString(true);
         ackNumEdit.lock();
         if (temp.seqNum() > lastAck)
         {
@@ -395,7 +395,7 @@ void sendFile(std::string filename, int winSize, int seqNum){
                     std::thread(sendAndWaitThread, sendNext).detach();
                 }
                 // Wait 1 second between sends so there's a smaller chance of unordered
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                // std::this_thread::sleep_for(std::chrono::seconds(1));
                 i ++;
                 // packetNum ++;
             }
