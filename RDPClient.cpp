@@ -311,7 +311,7 @@ void sendFile(std::string filename, int winSize, int seqNum){
     // Loop through file sending parts until their expected buffer is full
     int dataReplySize = fileLen;
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
-        dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
+        dataReplySize = MAX_MESS_LEN - HEADER_LENGTH - 1;
     for (int i = 0; i < fileLen; i += dataReplySize){
         std::string sendFilePart;
         if (!(i + dataReplySize > fileLen))
