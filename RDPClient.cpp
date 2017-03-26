@@ -154,21 +154,21 @@ int establishConnection(RDPMessage messageOut, std::string sendIP,
     return winSize;
 }
 
-int getFileLen(std::string filename){
+long int getFileLen(std::string filename){
     std::ifstream inFile(filename, std::ios::binary | std::ios::ate);
-        int fileLen = inFile.tellg();
+        long int fileLen = inFile.tellg();
         inFile.close();
         return fileLen;
 }
 
-std::string openFile(std::string filename, char* fileContents, int fileLen){
-    // Get file length
-        // Read in file
-        FILE * inFileC = fopen(filename.c_str(), "r");
-        int bytes_read = fread(fileContents, sizeof(char), fileLen, inFileC);
-        if (bytes_read == 0)
-            std::cout << "Input file is empty" << std::endl;
-
+std::string openFile(std::string filename, char* fileContents, long int fileLen){
+    // Read in file
+    FILE * inFileC = fopen(filename.c_str(), "r");
+    long int bytes_read = fread(fileContents, sizeof(char), fileLen, inFileC);
+    if (bytes_read == 0)
+        std::cout << "Input file is empty" << std::endl;
+    std::cout << "Read in num bytes " << bytes_read << std::endl;
+    std::cout << "Filecontents is " << fileContents << std::endl;
     return std::string(fileContents);
 }
 
@@ -299,22 +299,42 @@ int sendAndWaitThread(RDPMessage messageOut){
 void sendFile(std::string filename, int winSize, int seqNum){
     std::cout << "Commencing file send from seqNum " << seqNum << std::endl;
     // Max RDP packet size = 1024 bytes
-    int fileLen = getFileLen(filename);
-    char fileContents[fileLen + 1];
-    memset(fileContents, '\0', sizeof(fileContents));
-    std::string wholeFile = openFile(filename, fileContents, fileLen);
+
+    // long int fileLen = getFileLen(filename);
+    // char fileContents[fileLen + 1];
+    // memset(fileContents, '\0', sizeof(fileContents));
+    // std::string wholeFile = openFile(filename, fileContents, fileLen);
+
+    std::ifstream t(filename);
+    std::string wholeFile;
+
+    t.seekg(0, std::ios::end);   
+    wholeFile.reserve(t.tellg());
+    t.seekg(0, std::ios::beg);
+
+    wholeFile.assign((std::istreambuf_iterator<char>(t)),
+                      std::istreambuf_iterator<char>());
+    long int fileLen = wholeFile.length();
+
     // Loop through file sending parts until their expected buffer is full
     int dataReplySize = fileLen;
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
         dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
     // Set the first expected ACK num == the initial seq num + the length of pack
     // expectedAckNum = seqNum + dataReplySize + HEADER_LENGTH;
-    for (int i = 0; i < fileLen; i += dataReplySize){
+    // std::cout << "fileContent len is " << strlen(fileContents) << std::endl;
+    std::cout << "Whole input file " << wholeFile << std::endl;
+    for (long int i = 0; i < fileLen; i += dataReplySize){
+        // std::cout << "Making objs. i is " << i << std::endl;
+        // std::cout << "data: " << dataReplySize << " file len: " << fileLen << std::endl;
         std::string sendFilePart;
         if (!(i + dataReplySize > fileLen))
             sendFilePart = wholeFile.substr(i, dataReplySize);
-        else 
-            sendFilePart = wholeFile.substr(i, fileLen - i);            
+        else {
+            // std::cout << "OOOHH WEEE data reply size > file length " 
+            //     "data: " << dataReplySize << " file len: " << fileLen << std::endl;
+            sendFilePart = wholeFile.substr(i, fileLen - i - 1);            
+        }
         RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
         messToSend.push_back(messageObj);
         seqNum += MAX_MESS_LEN;
