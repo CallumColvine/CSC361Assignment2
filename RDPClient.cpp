@@ -154,17 +154,17 @@ int establishConnection(RDPMessage messageOut, std::string sendIP,
     return winSize;
 }
 
-long int getFileLen(std::string filename){
+int getFileLen(std::string filename){
     std::ifstream inFile(filename, std::ios::binary | std::ios::ate);
-        long int fileLen = inFile.tellg();
-        inFile.close();
-        return fileLen;
+    int fileLen = inFile.tellg();
+    inFile.close();
+    return fileLen;
 }
 
-std::string openFile(std::string filename, char* fileContents, long int fileLen){
+std::string openFile(std::string filename, char* fileContents, int fileLen){
     // Read in file
     FILE * inFileC = fopen(filename.c_str(), "r");
-    long int bytes_read = fread(fileContents, sizeof(char), fileLen, inFileC);
+    int bytes_read = fread(fileContents, sizeof(char), fileLen, inFileC);
     if (bytes_read == 0)
         std::cout << "Input file is empty" << std::endl;
     std::cout << "Read in num bytes " << bytes_read << std::endl;
@@ -226,7 +226,8 @@ void threadGetReply(RDPMessage messageOut){
     // senderWindowSize = messageIn.size();
     // std::cout << "Before if okay " << std::endl;
     if (messageOut.seqNum() > lastAck){
-        std::cout << "This packet's SEQ # is > than last ACK. Re-queue" << std::endl;
+        std::cout << "This packet requeue. SEQ # is > than last ACK: " << 
+                lastAck << std::endl;
         messToSend.insert(messToSend.begin(), messageOut);                   
     } 
     // This is the next message that should send. 
@@ -299,41 +300,24 @@ int sendAndWaitThread(RDPMessage messageOut){
 void sendFile(std::string filename, int winSize, int seqNum){
     std::cout << "Commencing file send from seqNum " << seqNum << std::endl;
     // Max RDP packet size = 1024 bytes
-
-    // long int fileLen = getFileLen(filename);
-    // char fileContents[fileLen + 1];
-    // memset(fileContents, '\0', sizeof(fileContents));
-    // std::string wholeFile = openFile(filename, fileContents, fileLen);
-
     std::ifstream t(filename);
     std::string wholeFile;
-
     t.seekg(0, std::ios::end);   
     wholeFile.reserve(t.tellg());
     t.seekg(0, std::ios::beg);
-
     wholeFile.assign((std::istreambuf_iterator<char>(t)),
                       std::istreambuf_iterator<char>());
-    long int fileLen = wholeFile.length();
-
+    int fileLen = wholeFile.length();
     // Loop through file sending parts until their expected buffer is full
     int dataReplySize = fileLen;
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
         dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
-    // Set the first expected ACK num == the initial seq num + the length of pack
-    // expectedAckNum = seqNum + dataReplySize + HEADER_LENGTH;
-    // std::cout << "fileContent len is " << strlen(fileContents) << std::endl;
-    // std::cout << "Whole input file " << wholeFile << std::endl;
-    for (long int i = 0; i < fileLen; i += dataReplySize){
-        // std::cout << "Making objs. i is " << i << std::endl;
-        // std::cout << "data: " << dataReplySize << " file len: " << fileLen << std::endl;
+    for (int i = 0; i < fileLen; i += dataReplySize){
         std::string sendFilePart;
         if (!(i + dataReplySize > fileLen))
             sendFilePart = wholeFile.substr(i, dataReplySize);
         else {
-            // std::cout << "OOOHH WEEE data reply size > file length " 
-            //     "data: " << dataReplySize << " file len: " << fileLen << std::endl;
-            sendFilePart = wholeFile.substr(i, fileLen - i - 1);            
+            sendFilePart = wholeFile.substr(i, fileLen - i);            
         }
         RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
         messToSend.push_back(messageObj);
@@ -363,6 +347,10 @@ void sendFile(std::string filename, int winSize, int seqNum){
                 listEdit.lock();
                 RDPMessage sendNext = messToSend.front();
                 messToSend.erase(messToSend.begin());
+                if (sendNext.seqNum() == 1000)
+                {
+                    /* code */
+                }
                 listEdit.unlock();
                 std::thread(sendAndWaitThread, sendNext).detach();
             }
