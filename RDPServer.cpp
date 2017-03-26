@@ -31,7 +31,7 @@ int amountDataWaiting = 0;
 std::vector<RDPMessage> inMessages;
 
 int curWindowSize = FULL_WINDOW_SIZE;
-
+int lastBytesRead = 0;
 
 RDPMessage establishConnection(std::string recvIP, std::string recvPort){
     recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -69,6 +69,7 @@ RDPMessage establishConnection(std::string recvIP, std::string recvPort){
     mostRecentSeq = messageIn.seqNum();
     // Since we increment by 1 from the 2-way handshake
     mostRecentSeq += 1;
+    lastBytesRead = int(recsize);
     return messageIn;
 }
 
@@ -77,7 +78,7 @@ RDPMessage prepareMessageOut(RDPMessage messageOut, RDPMessage messageIn){
     messageIn.toString(true);
     messageOut.setACK(true);
     messageOut.setSeqNum(messageIn.seqNum());
-    int ackNum = messageIn.seqNum() + messageIn.length();
+    int ackNum = messageIn.seqNum() + lastBytesRead;
     messageOut.setAckNum(ackNum);
     messageOut.setSize(0);
     messageOut.setMessage("");
