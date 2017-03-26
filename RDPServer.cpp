@@ -175,6 +175,9 @@ void inputLoop(char* fullWindow, std::string filenameOut){
         else if (mostRecentSeq + recvSize < messageIn.seqNum() + recvSize){
             std::cout << "Received that's further than expected asking for" << std::endl;
             sendAck(mostRecentSeq, curWindowSize);
+        } else {
+            std::cout << "Receiving messages earlier than expected. Asking for later" << std::endl;
+            sendAck(mostRecentSeq, curWindowSize);
         }
         //
         // writeInputToFile(messageIn, out);
