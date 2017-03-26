@@ -248,8 +248,8 @@ void threadGetReply(RDPMessage messageOut){
 }
 
 void threadTimedOut(RDPMessage messageOut){
-    std::cout << "Response timed out. Re-send by prioritizing " <<
-            messageOut.seqNum() << std::endl;
+    std::cout << "Response timed out. Replace in queue " <<
+            messageOut.seqNum() << " last acked SEQ is " << lastAck <<  std::endl;
     // Only add if not alread in list
     listEdit.lock();
     prioritySend.insert(prioritySend.begin(), messageOut);
