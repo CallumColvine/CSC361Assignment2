@@ -31,6 +31,8 @@ struct sockaddr_in saIn;
 struct sockaddr_in saOut;
 // Seems to be 36 atm (or 35, going with 36 though)
 int HEADER_LENGTH = 0;
+volatile int lastAck = 0;
+
 
 RDPMessage prepSynMessage(){
     RDPMessage message;
@@ -115,6 +117,7 @@ int recvInitAck(std::string sendIP, std::string sendPort){
         // break;
         RDPMessage temp;
         temp.unpackCString(buffer);
+        lastAck = temp.ackNum();
         return temp.size();
     // }
 }
@@ -187,7 +190,6 @@ std::mutex editNumSend;
 // volatile int expectedAck = 0;
 std::vector<RDPMessage> messToSend;
 std::vector<RDPMessage> prioritySend;
-volatile int lastAck = 0;
 volatile int numSending = 0;
 
 void filterList(int ackNum){

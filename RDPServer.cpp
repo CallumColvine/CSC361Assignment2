@@ -137,7 +137,7 @@ int inputData(){
 void sendAck(int outAckNum, int newWinSize){
     RDPMessage messageOut;
     messageOut.setACK(true);
-    messageOut.setSeqNum(outAckNum);
+    messageOut.setAckNum(outAckNum);
     messageOut.setSize(newWinSize);
     char fullReply[MAX_MESS_LEN];
     memset(fullReply, '\0', sizeof(fullReply));
