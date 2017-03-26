@@ -310,7 +310,11 @@ void sendFile(std::string filename, int winSize, int seqNum){
     // Set the first expected ACK num == the initial seq num + the length of pack
     // expectedAckNum = seqNum + dataReplySize + HEADER_LENGTH;
     for (int i = 0; i < fileLen; i += dataReplySize){
-        std::string sendFilePart = wholeFile.substr(i, dataReplySize);
+        std::string sendFilePart;
+        if (!(i + dataReplySize > fileLen))
+            sendFilePart = wholeFile.substr(i, dataReplySize);
+        else 
+            sendFilePart = wholeFile.substr(i, fileLen - i);            
         RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
         messToSend.push_back(messageObj);
         seqNum += MAX_MESS_LEN;
