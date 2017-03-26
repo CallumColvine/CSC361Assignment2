@@ -323,7 +323,7 @@ void sendFile(std::string filename, int winSize, int seqNum){
     // Set the first expected ACK num == the initial seq num + the length of pack
     // expectedAckNum = seqNum + dataReplySize + HEADER_LENGTH;
     // std::cout << "fileContent len is " << strlen(fileContents) << std::endl;
-    std::cout << "Whole input file " << wholeFile << std::endl;
+    // std::cout << "Whole input file " << wholeFile << std::endl;
     for (long int i = 0; i < fileLen; i += dataReplySize){
         // std::cout << "Making objs. i is " << i << std::endl;
         // std::cout << "data: " << dataReplySize << " file len: " << fileLen << std::endl;
