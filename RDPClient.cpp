@@ -320,7 +320,7 @@ void sendFile(std::string filename, int winSize, int seqNum){
             std::cout << "!!! fileLen - i is " << fileLen - i << std::endl;
             sendFilePart = wholeFile.substr(i, fileLen - i);            
             std::this_thread::sleep_for(std::chrono::seconds(10));
-
+        
         }
         RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
         messToSend.push_back(messageObj);
