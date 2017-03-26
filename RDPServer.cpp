@@ -80,6 +80,7 @@ RDPMessage prepareMessageOut(RDPMessage messageOut, RDPMessage messageIn){
     messageOut.setSeqNum(messageIn.seqNum());
     int ackNum = messageIn.seqNum() + lastBytesRead;
     messageOut.setAckNum(ackNum);
+    std::cout << "Sending a reply with ACK == " << messageOut.ackNum();
     messageOut.setSize(0);
     messageOut.setMessage("");
     // messageOut.updateLength();
