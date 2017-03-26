@@ -312,15 +312,14 @@ void sendFile(std::string filename, int winSize, int seqNum){
     int dataReplySize = fileLen;
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
         dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
+    std::cout << "Data reply size is " << dataReplySize << std::endl;
     for (int i = 0; i < fileLen; i += dataReplySize){
         std::string sendFilePart;
         if (!(i + dataReplySize > fileLen))
             sendFilePart = wholeFile.substr(i, dataReplySize);
         else {
-            std::cout << "!!! fileLen - i is " << fileLen - i << std::endl;
+            std::cout << "!!! fileLen - i is " << fileLen - i << "the pack is " << seqNum << std::endl;
             sendFilePart = wholeFile.substr(i, fileLen - i);            
-            std::this_thread::sleep_for(std::chrono::seconds(10));
-
         }
         RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
         messToSend.push_back(messageObj);
@@ -358,7 +357,6 @@ void sendFile(std::string filename, int winSize, int seqNum){
                 std::thread(sendAndWaitThread, sendNext).detach();
             }
             // Wait 1 second between sends so there's a smaller chance of unordered
-            // std::this_thread::sleep_for(std::chrono::seconds(1));
             i ++;
             numSending ++;
             // packetNum ++;
