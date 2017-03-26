@@ -24,6 +24,8 @@ extern "C" {
 #include "RDPMessage.h"
 
 
+#define LOCAL_TESTING false
+
 int sendSock;
 struct sockaddr_in saIn;
 struct sockaddr_in saOut;
@@ -143,7 +145,10 @@ int establishConnection(RDPMessage messageOut, std::string sendIP,
 
     // close(sock); /* close the socket */
     // Should return the total recv window size
-    return recvInitAck(recvIP, recvPort);
+    int winSize = FULL_WINDOW_SIZE;
+    if (! LOCAL_TESTING)
+        winSize = recvInitAck(recvIP, recvPort);
+    return winSize;
 }
 
 int getFileLen(std::string filename){
@@ -217,11 +222,15 @@ void threadGetReply(RDPMessage messageOut){
     lastAck = std::max((int)lastAck, messageIn.ackNum());
     listEdit.lock();
     // senderWindowSize = messageIn.size();
+    // std::cout << "Before if okay " << std::endl;
     if (messageOut.seqNum() > lastAck){
-        messToSend.insert(prioritySend.begin(), messageOut);                   
+        std::cout << "This packet's SEQ # is > than last ACK. Re-queue" << std::endl;
+        messToSend.insert(messToSend.begin(), messageOut);                   
     } 
     // This is the next message that should send. 
     else if (messageOut.seqNum() == lastAck) {
+        std::cout << "This packet's SEQ # is THE NEXT one to send. Queue as priority" 
+                << std::endl;
         prioritySend.insert(prioritySend.begin(), messageOut);
     } else {
         std::cout << "This packet was less than the last ACK. Let it go." 
