@@ -4,6 +4,7 @@ extern "C" {
     #include <string.h>
     #include <sys/socket.h>
     #include <sys/types.h>
+    #include <sys/time.h>
     #include <netinet/in.h>
     #include <unistd.h> /* for close() for socket */
     #include <stdlib.h>
@@ -21,6 +22,28 @@ extern "C" {
 
 // #define WINDOW_SIZE      1024
 
+// total data bytes received:
+uint totalData = 0;
+// unique data bytes received:
+uint uniqueData = 0;
+// total data packets received:
+uint totalDataPackets = 0;
+// unique data packets received:
+uint uniqueDataPackets = 0;
+// SYN packets received:
+uint synPackets = 0;
+// FIN packets received:
+uint finPackets = 0;
+// RST packets received:
+uint rstPacketsRecv = 0;
+// ACK packets sent:
+uint ackPackets = 0;
+// RST packets sent:
+uint rstPacketsSent = 0;
+// total time duration (second):
+struct timeval startTime;
+struct timeval endTime;
+
 int sendSock;
 struct sockaddr_in saIn;
 int recvSock;
@@ -32,6 +55,21 @@ std::vector<RDPMessage> inMessages;
 
 int curWindowSize = FULL_WINDOW_SIZE;
 int lastBytesRead = 0;
+
+void finalPrint(){
+    gettimeofday(&endTime, NULL);
+    std::cout << "total data bytes received: " << totalData << std::endl;
+    std::cout << "unique data bytes received: " << uniqueData << std::endl;
+    std::cout << "total data packets received: " << totalDataPackets << std::endl;
+    std::cout << "unique data packets received: " << uniqueDataPackets << std::endl;
+    std::cout << "SYN packets received: " << synPackets << std::endl;
+    std::cout << "FIN packets received: " << finPackets << std::endl;
+    std::cout << "RST packets received: " << rstPacketsRecv << std::endl;
+    std::cout << "ACK packets sent: " << ackPackets << std::endl;
+    std::cout << "RST packets sent: " << rstPacketsSent << std::endl;
+    std::cout << "total time duration: " <<
+            endTime.tv_sec - startTime.tv_sec << std::endl;
+}
 
 RDPMessage establishConnection(std::string recvIP, std::string recvPort){
     recvSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -66,6 +104,9 @@ RDPMessage establishConnection(std::string recvIP, std::string recvPort){
     // }
     RDPMessage messageIn;
     messageIn.unpackCString(buffer);
+    if (messageIn.type() == 100)
+        synPackets ++;
+    gettimeofday(&startTime, NULL);
     mostRecentSeq = messageIn.seqNum();
     // Since we increment by 1 from the 2-way handshake
     mostRecentSeq += 1;
@@ -127,6 +168,8 @@ int inputData(){
         fprintf(stderr, "%s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
+    totalData += recsize;
+    totalDataPackets ++;
     // printf("datagram: %.*s\n", (int)recsize, buffer);
     RDPMessage messageIn;
     messageIn.unpackCString(buffer);
@@ -134,9 +177,9 @@ int inputData(){
     return (int) recsize;
 }
 
-void sendAck(int outAckNum, int newWinSize){
+void sendAck(int outAckNum, int newWinSize, int type = 100){
     RDPMessage messageOut;
-    messageOut.setACK(true);
+    messageOut.setType(type);
     messageOut.setAckNum(outAckNum);
     messageOut.setSize(newWinSize);
     char fullReply[MAX_MESS_LEN];
@@ -147,6 +190,8 @@ void sendAck(int outAckNum, int newWinSize){
     // messageOut.setSeqNum
     std::cout << "Replied with num bytes: " << bytesSent << std::endl;
 }
+
+bool rollOver = false;
 
 void inputLoop(char* fullWindow, std::string filenameOut){
     // Here is where I loop forever until I get a FIN packet
@@ -160,8 +205,18 @@ void inputLoop(char* fullWindow, std::string filenameOut){
         RDPMessage messageIn = inMessages.back();
         std::cout << "Expected SEQ num " << mostRecentSeq;
         std::cout << " Received SEQ num " << messageIn.seqNum()<< std::endl;
+        // FIN packet caught, reply with FIN
+        if (messageIn.type() == 1000) {
+            std::cout << "Received FIN packet" << std::endl;
+            sendAck(mostRecentSeq, curWindowSize);
+            receivedFIN = true;
+        }
         // Case where we caught the next package in the sequence
-        if (mostRecentSeq + recvSize == messageIn.seqNum() + recvSize)
+        if(mostRecentSeq + recvSize > 10000000){
+            rollOver = true;
+        }
+        ackPackets ++;
+        if (mostRecentSeq == messageIn.seqNum())
         {
             std::cout << "Received the next expected message " << std::endl;
             curWindowSize -= recvSize;
@@ -169,20 +224,31 @@ void inputLoop(char* fullWindow, std::string filenameOut){
             out << messageIn.message();
             out.flush();
             curWindowSize += recvSize;
-            mostRecentSeq = mostRecentSeq + recvSize;
+            mostRecentSeq = (mostRecentSeq + recvSize) % 10000000;
+            uniqueData += recvSize;
+            uniqueDataPackets ++;
         }
         // Case where we caught a later than expected package
-        else if (mostRecentSeq + recvSize < messageIn.seqNum() + recvSize){
+        else if (mostRecentSeq < messageIn.seqNum()){
             std::cout << "Received that's further than expected asking for" << std::endl;
             sendAck(mostRecentSeq, curWindowSize);
-        } else {
-            std::cout << "Receiving messages earlier than expected. Asking for later" << std::endl;
+        }
+        // Case where the SEQ num rolled over, so this is backwards
+        // SEQ num in will be like 400 when mostRecent is like 99900
+        else if(mostRecentSeq > messageIn.seqNum()) {
+            sendAck(mostRecentSeq, curWindowSize);
+            rollOver = false;
+        }
+        else {
+            std::cout << "Receiving messages earlier than expected. Asking for " <<
+                    mostRecentSeq << std::endl;
             sendAck(mostRecentSeq, curWindowSize);
         }
         //
         // writeInputToFile(messageIn, out);
     }
     out.close();
+    finalPrint();
 }
 
 int main(int argc, char const *argv[])

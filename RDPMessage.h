@@ -25,9 +25,9 @@ class RDPMessage
     int seqNumLen() { return _seqNumLen; }
   	std::string magic() { return _magic; }
     // User must 0-pad the int themselves since the interger 0 values disappear
-  	int type(){ 
+  	int type(){
         if (DAT())
-            return 1; 
+            return 1;
         else if (ACK())
             return 10;
         else if (SYN())
@@ -36,7 +36,7 @@ class RDPMessage
             return 1000;
         else if (RST())
             return 10000;
-        else 
+        else
           return -1;
     }
   	int seqNum(){ return _seqNum; }
@@ -44,6 +44,7 @@ class RDPMessage
   	int length(){ return _length; }              // Payload length
   	int size(){ return _size; }                  // Window size
   	std::string message() { return _message; }
+    int timesSent(){ return _timesSent; }
     bool DAT() { return _dat; }
     bool ACK() { return _ack; }
     bool SYN() { return _syn; }
@@ -51,7 +52,7 @@ class RDPMessage
     bool RST() { return _rst; }
   	// Setters
   	void setMagic(std::string magicIn) { _magic = magicIn; }
-  	void setType(int typeIn) { 
+  	void setType(int typeIn) {
         if (typeIn == 1)
             setDAT(true);
         else if (typeIn == 10)
@@ -63,8 +64,8 @@ class RDPMessage
         else if (typeIn == 10000)
             setRST(true);
     }
-  	void setSeqNum(int seqNumIn) { _seqNum = seqNumIn; }
-  	void setAckNum(int ackNumIn) { _ackNum = ackNumIn; }
+  	void setSeqNum(int seqNumIn) { _seqNum = seqNumIn % 10000000; }
+  	void setAckNum(int ackNumIn) { _ackNum = ackNumIn % 10000000; }
   	void setLength(int lengthIn) { _length = lengthIn; }
   	void setSize(int sizeIn) { _size = sizeIn; }
   	void setMessage(std::string messageIn) { _message = messageIn; }
@@ -73,10 +74,11 @@ class RDPMessage
     void setSYN(bool isTrue) { _syn = isTrue; }
     void setFIN(bool isTrue) { _fin = isTrue; }
     void setRST(bool isTrue) { _rst = isTrue; }
+    void incrTimesSent() { _timesSent++; }
   	// Contructor/destructor
 	  RDPMessage();
 	  ~RDPMessage();
-  
+
   private:
     int _seqNumLen = pow(2, 16) - 1;
   	std::string _magic = "CSC361"; 	// "CSC361"
@@ -90,7 +92,8 @@ class RDPMessage
   	int _ackNum = 0;			// Acknowledgement Number
   	int _length = 0;			// Payload length
   	int _size = 0;				// Window size
-  	std::string _message = "";
+  	std::string _message = "";\
+    int _timesSent = 0;
 };
 
 #endif

@@ -33,6 +33,46 @@ struct sockaddr_in saOut;
 int HEADER_LENGTH = 0;
 volatile int lastAck = 0;
 
+RDPMessage lastMess;
+
+std::mutex listEdit;
+std::mutex ackNumEdit;
+std::mutex editNumSend;
+// std::mutex lastSeqNumEdit;
+std::vector<RDPMessage> messToSend;
+std::vector<RDPMessage> prioritySend;
+// volatile int lastSeqNum;
+volatile int numSending = 0;
+volatile bool rollOver = false;
+int lastSeq = 0;
+
+// total data bytes sent: 1165152
+std::mutex totalDataEdit;
+volatile uint totalData = 0;
+// unique data bytes sent: 1048576
+std::mutex uniqueDataEdit;
+volatile uint uniqueData = 0;
+// total data packets sent: 1166
+std::mutex totalPacketsEdit;
+volatile uint totalPackets = 0;
+// unique data packets sent: 1049
+std::mutex uniquePacketsEdit;
+volatile uint uniquePackets = 0;
+// SYN packets sent: 1
+uint synPackets = 0;
+// FIN packets sent: 1
+uint finPackets = 0;
+// RST packets sent: 0
+uint rstPacketsSent = 0;
+// ACK packets received: 1051
+std::mutex ackPacketsEdit;
+volatile uint ackPackets = 0;
+// RST packets received: 0
+uint rstPacketsRecv = 0;
+// total time duration (second): 0.093
+struct timeval startTime;
+struct timeval endTime;
+// struct timeval totalTime;
 
 RDPMessage prepSynMessage(){
     RDPMessage message;
@@ -50,6 +90,21 @@ RDPMessage prepSynMessage(){
     return message;
 }
 
+void finalPrint(){
+    gettimeofday(&endTime, NULL);
+    std::cout << "total data bytes sent: " << totalData << std::endl;
+    std::cout << "unique data bytes sent: " << uniqueData << std::endl;
+    std::cout << "total data packets sent: " << totalPackets << std::endl;
+    std::cout << "unique data packets sent: " << uniquePackets << std::endl;
+    std::cout << "SYN packets sent: " << synPackets << std::endl;
+    std::cout << "FIN packets sent: " << finPackets << std::endl;
+    std::cout << "RST packets sent: " << rstPacketsSent << std::endl;
+    std::cout << "ACK packets received: " << ackPackets << std::endl;
+    std::cout << "RST packets received: " << rstPacketsRecv << std::endl;
+    std::cout << "total time duration (second): " <<
+            endTime.tv_sec - startTime.tv_sec << std::endl;
+}
+
 RDPMessage prepFileMessage(int seqNum, int fileLen, std::string contents){
     RDPMessage message;
     message.setDAT(true);
@@ -64,8 +119,10 @@ RDPMessage prepFileMessage(int seqNum, int fileLen, std::string contents){
     return message;
 }
 
-void initSendSock(){
-
+void incrAcks(){
+    ackPacketsEdit.lock();
+    ackPackets ++;
+    ackPacketsEdit.unlock();
 }
 
 struct sockaddr_in initSa(std::string recvIP, std::string recvPort){
@@ -75,6 +132,24 @@ struct sockaddr_in initSa(std::string recvIP, std::string recvPort){
     sa.sin_addr.s_addr = inet_addr(recvIP.c_str());
     sa.sin_port = htons(stoi(recvPort));
     return sa;
+}
+
+void incrTotal(int bytesSent){
+    totalDataEdit.lock();
+    totalData += bytesSent;
+    totalDataEdit.unlock();
+    totalPacketsEdit.lock();
+    totalPackets ++;
+    totalPacketsEdit.unlock();
+}
+
+void incrUnique(int bytesSent){
+    uniqueDataEdit.lock();
+    uniqueData += bytesSent;
+    uniqueDataEdit.unlock();
+    uniquePacketsEdit.lock();
+    uniquePackets ++;
+    uniquePacketsEdit.unlock();
 }
 
 void sendInitSyn(RDPMessage messageOut){
@@ -88,6 +163,9 @@ void sendInitSyn(RDPMessage messageOut){
     newMessage.toString(true);
     bytes_sent = sendto(sendSock, messageString, strlen(messageString), 0,
             (struct sockaddr*)&saOut, sizeof saOut);
+    incrTotal(bytes_sent);
+    // incrUnique(bytes_sent);
+    synPackets ++;
     if (bytes_sent < 0) {
         printf("Error sending packet: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
@@ -117,6 +195,11 @@ int recvInitAck(std::string sendIP, std::string sendPort){
         // break;
         RDPMessage temp;
         temp.unpackCString(buffer);
+        if (temp.type() == 10) {
+            incrAcks();
+        }
+        if (temp.type() == 10)
+            ackPackets ++;
         lastAck = temp.ackNum();
         return temp.size();
     // }
@@ -177,20 +260,6 @@ template<typename R>
     { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }
 
 
-std::mutex listEdit;
-// std::mutex winSizeEdit;
-std::mutex ackNumEdit;
-// std::mutex guessEdit;
-std::mutex editNumSend;
-// Could be winSize / maxPackSize, ie. 10
-// volatile std::vector<RDPMessage> packWaitAckList;
-// std::vector<RDPMessage> packWaitAckList;
-// volatile int senderWindowSize = FULL_WINDOW_SIZE;
-// volatile int sendNext = -1;
-// volatile int expectedAck = 0;
-std::vector<RDPMessage> messToSend;
-std::vector<RDPMessage> prioritySend;
-volatile int numSending = 0;
 
 void filterList(int ackNum){
     listEdit.lock();
@@ -203,10 +272,11 @@ void filterList(int ackNum){
     listEdit.unlock();
 }
 
+
 void threadGetReply(RDPMessage messageOut){
     char buffer[1024];
     socklen_t fromlen = sizeof(saOut);
-    std::cout << "Setting thread to wait for ACK " << messageOut.seqNum() 
+    std::cout << "Setting thread to wait for ACK " << messageOut.seqNum()
             << std::endl;
     ssize_t recsize = recvfrom(sendSock, (void*)buffer, sizeof buffer, 0,
             (struct sockaddr*)&saOut, &fromlen);
@@ -216,27 +286,32 @@ void threadGetReply(RDPMessage messageOut){
     }
     RDPMessage messageIn;
     messageIn.unpackCString(buffer);
-    // std::cout << "just sent " << std::endl;
-    // messageOut.toString(true);
-    // std::cout << "and received " << std::endl;
-    // messageIn.toString(true);
+    if (messageIn.type() == 10) {
+        incrAcks();
+    }
     ackNumEdit.lock();
-    lastAck = std::max((int)lastAck, messageIn.ackNum());
+    if ((int)lastAck + MAX_MESS_LEN > 10000000)
+        rollOver = true;
+    if (!rollOver)
+        lastAck = std::max((int)lastAck % 10000000, messageIn.ackNum() % 10000000);
+    else {
+        lastAck = std::min((int)lastAck % 10000000, messageIn.ackNum() % 10000000);
+        rollOver = false;
+    }
     listEdit.lock();
-    // senderWindowSize = messageIn.size();
-    // std::cout << "Before if okay " << std::endl;
+    std::cout << "Received ackNum " << messageIn.ackNum() << std::endl;
     if (messageOut.seqNum() > lastAck){
-        std::cout << "This packet requeue. SEQ # is > than last ACK: " << 
+        std::cout << "This packet requeue. SEQ # is > than last ACK: " <<
                 lastAck << std::endl;
-        messToSend.insert(messToSend.begin(), messageOut);                   
-    } 
-    // This is the next message that should send. 
+        messToSend.insert(messToSend.begin(), messageOut);
+    }
+    // This is the next message that should send.
     else if (messageOut.seqNum() == lastAck) {
-        std::cout << "This packet's SEQ # is THE NEXT one to send. Queue as priority" 
+        std::cout << "This packet's SEQ # is THE NEXT one to send. Queue as priority"
                 << std::endl;
         prioritySend.insert(prioritySend.begin(), messageOut);
     } else {
-        std::cout << "This packet was less than the last ACK. Let it go." 
+        std::cout << "This packet was less than the last ACK. Let it go."
                 << std::endl;
     }
     // ToDo: Remove self from list
@@ -250,14 +325,17 @@ void threadGetReply(RDPMessage messageOut){
 void threadTimedOut(RDPMessage messageOut){
     std::cout << "Response timed out. Replace in queue " <<
             messageOut.seqNum() << " last acked SEQ is " << lastAck <<  std::endl;
-    // Only add if not alread in list
-    listEdit.lock();
-    prioritySend.insert(prioritySend.begin(), messageOut);
-    listEdit.unlock();
+    // Only add if it's not an alrwady acked seq
+    if (!messageOut.seqNum() < lastAck) {
+        listEdit.lock();
+        prioritySend.insert(prioritySend.begin(), messageOut);
+        listEdit.unlock();
+    }
     editNumSend.lock();
     numSending --;
     editNumSend.unlock();
 }
+
 
 // returns -1 on thread ACK
 // returns seqNum on timed out message
@@ -268,105 +346,159 @@ int sendAndWaitThread(RDPMessage messageOut){
     messageOut.toCString(fullReply);
     int bytesSent = sendto(sendSock, fullReply, strlen(fullReply), 0,
                                     (struct sockaddr*)&saOut, sizeof saOut);
+    incrTotal(bytesSent);
+    if (messageOut.timesSent() == 0) {
+        incrUnique(bytesSent);
+    }
+    messageOut.incrTimesSent();
     // --- Wait for Reply Packet here ---
-    std::cout << "Packet sent. Bytes: " << bytesSent << " SEQ num " << 
+    std::cout << "Packet sent. Bytes: " << bytesSent << " SEQ num " <<
             messageOut.seqNum() << std::endl;
     // Set a timer with timeout == 3 seconds
     fd_set set;
     struct timeval timeout;
     FD_ZERO(&set);
     FD_SET(sendSock, &set);
-    timeout.tv_sec = 3;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 30 * 1000;
     int retval = select(sendSock + 1, &set, NULL, NULL, &timeout);
     if (retval == 0){
-        threadTimedOut(messageOut); 
-    } 
+        threadTimedOut(messageOut);
+    }
     else if(retval < 0) {
         perror("Error with select()");
         editNumSend.lock();
         numSending --;
         editNumSend.unlock();
-    } 
+    }
     // Socket ready to read. Set it to listen
     else {
         threadGetReply(messageOut);
     }
-    return bytesSent; 
+    return bytesSent;
+}
+
+void mainSendLoop(){
+    while (((!messToSend.empty()) || (!prioritySend.empty())) &&
+    numSending < (FULL_WINDOW_SIZE / MAX_MESS_LEN)){
+        // Send item
+        if (!prioritySend.empty())
+        {
+            std::cout << "Sending a priority packet " << std::endl;
+            listEdit.lock();
+            RDPMessage sendNext = prioritySend.front();
+            prioritySend.erase(prioritySend.begin());
+            listEdit.unlock();
+            std::thread(sendAndWaitThread, sendNext).detach();
+        } else {
+            std::cout << "Sending the expected next packet" << std::endl;
+            listEdit.lock();
+            RDPMessage sendNext = messToSend.front();
+            messToSend.erase(messToSend.begin());
+            // ToDo stuff about rollover?
+            // if (sendNext.seqNum() == 1000)
+            listEdit.unlock();
+            std::thread(sendAndWaitThread, sendNext).detach();
+        }
+        numSending ++;
+    }
 }
 
 
-// winSize is the TOTAL receiver window
-void sendFile(std::string filename, int winSize, int seqNum){
+int fillMessageSendVec(std::string filename, int seqNum){
     std::cout << "Commencing file send from seqNum " << seqNum << std::endl;
     // Max RDP packet size = 1024 bytes
     std::ifstream t(filename);
     std::string wholeFile;
-    t.seekg(0, std::ios::end);   
+    t.seekg(0, std::ios::end);
     wholeFile.reserve(t.tellg());
     t.seekg(0, std::ios::beg);
     wholeFile.assign((std::istreambuf_iterator<char>(t)),
-                      std::istreambuf_iterator<char>());
+    std::istreambuf_iterator<char>());
     int fileLen = wholeFile.length();
     // Loop through file sending parts until their expected buffer is full
     int dataReplySize = fileLen;
     if (fileLen > (MAX_MESS_LEN - HEADER_LENGTH))
-        dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
+    dataReplySize = MAX_MESS_LEN - HEADER_LENGTH;
     std::cout << "Data reply size is " << dataReplySize << std::endl;
     for (int i = 0; i < fileLen; i += dataReplySize){
         std::string sendFilePart;
         if (!(i + dataReplySize > fileLen))
-            sendFilePart = wholeFile.substr(i, dataReplySize);
+        sendFilePart = wholeFile.substr(i, dataReplySize);
         else {
             std::cout << "!!! fileLen - i is " << fileLen - i << "the pack is " << seqNum << std::endl;
-            sendFilePart = wholeFile.substr(i, fileLen - i);            
+            sendFilePart = wholeFile.substr(i, fileLen - i);
+            // std::this_thread::sleep_for(std::chrono::seconds(10));
         }
         RDPMessage messageObj = prepFileMessage(seqNum, dataReplySize, sendFilePart);
         messToSend.push_back(messageObj);
+        lastMess = messageObj;
+        lastSeq = seqNum;
         seqNum += MAX_MESS_LEN;
     }
-    int i = 0;
-    for (;;){
-        while (((!messToSend.empty()) || (!prioritySend.empty())) && 
-               numSending < (FULL_WINDOW_SIZE / MAX_MESS_LEN)){
-            std::cout << "Looping. File len " << fileLen << " data reply size "
-                    << dataReplySize << " packet num " << i << std::endl;
-            // Filter list
-            ackNumEdit.lock();
-            // filterList(lastAck - lastSize);
-            ackNumEdit.unlock();
-            // Send item
-            if (!prioritySend.empty())
-            {
-                // std::cout << "Sending a priority packet " << std::endl;
-                listEdit.lock();
-                RDPMessage sendNext = prioritySend.front();
-                prioritySend.erase(prioritySend.begin());
-                listEdit.unlock();
-                std::thread(sendAndWaitThread, sendNext).detach();
-            } else {
-                std::cout << "Sending the expected next packet" << std::endl;
-                listEdit.lock();
-                RDPMessage sendNext = messToSend.front();
-                messToSend.erase(messToSend.begin());
-                if (sendNext.seqNum() == 1000)
-                {
-                    /* code */
-                }
-                listEdit.unlock();
-                std::thread(sendAndWaitThread, sendNext).detach();
-            }
-            // Wait 1 second between sends so there's a smaller chance of unordered
-            i ++;
-            numSending ++;
-            // packetNum ++;
+    lastMess.incrTimesSent();
+    return fileLen;
+}
+
+void addFinPacket(int lastAck){
+    RDPMessage finMessage;
+    finMessage.setFIN(true);
+    finMessage.setSeqNum(lastAck);
+    messToSend.push_back(finMessage);
+}
+
+// winSize is the TOTAL receiver window
+void sendFile(std::string filename, int winSize, int seqNum){
+    int fileLen = fillMessageSendVec(filename, seqNum);
+    int totalToSend = messToSend.size();
+    std::cout << "Full file length is " << fileLen << std::endl;
+    std::cout << "Sending " << totalToSend << " packets " << std::endl;
+    std::cout << "numSending " << numSending << " messToSend empty " <<
+            messToSend.empty() << " prioritySend empty " <<
+            prioritySend.empty() << std::endl;
+    for(;;){
+        std::cout << "Looping main send loop " << messToSend.empty() <<
+                prioritySend.empty() << std::endl;
+        std::cout << "lastSeq is " << lastSeq << " lastAck is " << lastAck <<
+                " uniqueSent is " << uniquePackets << " totalLen is " <<
+                totalToSend << std::endl;
+        mainSendLoop();
+        // std::cout << "Unique packets " << uniquePackets - synPackets <<
+        //         " totalToSend " << totalToSend << std::endl;
+        if (lastSeq < lastAck) {
+            // We think both lists are empty. May be, but might drop last packet
+            break;
+        }
+        if (messToSend.empty() && prioritySend.empty()) {
+            messToSend.push_back(lastMess);
+            // break;
         }
     }
-
+    std::cout << "Last few packets sending. Slow down to ensure accuracy... " <<
+            std::endl;
+    // May be actually empty, but might also could have lost last packet
+    for (;;){
+        // Wait enough time for the last ack to come if the packet is not lost
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        mainSendLoop();
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        if (messToSend.empty() && prioritySend.empty()) {
+            break;
+        }
+    }
+    std::cout << "Added FIN packet to list, preparing to send" << std::endl;
+    addFinPacket(lastAck);
+    // for (;;){
+    // Wait enough time for the last ack to come if the packet is not lost
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    mainSendLoop();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    finalPrint();
 }
 
 int main(int argc, char const *argv[])
 {
+    gettimeofday(&startTime, NULL);
     // std::cout << sizeof "CSC361" << std::endl;
     RDPMessage message = prepSynMessage();
         char header[200];
