@@ -1,13 +1,15 @@
---- Home ---
-Run Server Like:
-./RDPServer 10.0.2.15 8080 received_file.txt
+Callum Colvine
+V00789488
 
-Run Client Like:
-./RDPClient 10.0.2.15 8080 10.0.2.15 8080 random_story.txt
+About all functionality should be implemented.
 
---- Lab ---
-Run Server Like:
-./RDPServer 10.10.1.100 8027 received_file.txt
+It seems possible to have errors if packet loss occurs during initial 2-way handshake.
 
-Run Client Like:
-./RDPClient 192.168.1.100 8027 10.10.1.100 8027 random_story.txt
+If the server and client do not start sending from handshake, please re-try. Error
+control has been implemented for main file sending.
+
+This program uses multiple threads to send and receive packets.
+
+Runtime should be around 60 seconds.
+
+Testing was done on the included 1_mb_file.bin

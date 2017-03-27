@@ -12,6 +12,7 @@ extern "C" {
 
 }
 
+#include <sstream>
 #include <iostream>
 #include "RDPMessage.h"
 #include <fstream>
@@ -56,6 +57,72 @@ std::vector<RDPMessage> inMessages;
 int curWindowSize = FULL_WINDOW_SIZE;
 int lastBytesRead = 0;
 
+std::string sourceIP;
+std::string sourcePort;
+std::string destIP;
+std::string destPort;
+
+
+std::vector<std::string> splitString(std::string input)
+{
+    std::istringstream iss(input);
+    std::vector<std::string> dateVector;
+    do
+    {
+        std::string sub;
+        iss >> sub;
+        dateVector.push_back(sub);
+
+    } while (iss);
+    return dateVector;
+}
+
+
+std::string getTime(){
+    time_t tobj;
+    time(&tobj);
+    // struct tm * now = localtime(&tobj);
+    // ctime (&rawtime)
+    std::string now = ctime(&tobj);
+    // std::cout << now << std::endl;
+    std::stringstream returnTimeS;
+    // std::cout << "now is " << now << std::endl;
+    std::vector<std::string> splitTime = splitString(now);
+    returnTimeS << splitTime[3];
+    std::string returnTime = returnTimeS.str();
+    return returnTime;
+}
+
+char getType(int typeIn){
+    if (typeIn == 1)
+        return 'D';
+    else if (typeIn == 10)
+        return 'A';
+    else if (typeIn == 100)
+        return 'S';
+    else if (typeIn == 1000)
+        return 'F';
+    else if (typeIn == 10000)
+        return 'R';
+    return 'X';
+}
+
+void logAction(int typeIn, int seqOrAck, int payloadOrWinSize,
+               int numSentRecv, char sendOrRecv){
+    if (sendOrRecv == 's') {
+        if (numSentRecv > 0) {
+            sendOrRecv = 'S';
+        }
+    } else {
+        sendOrRecv = 'r';
+    }
+    char type = getType(typeIn);
+    std::string timePart = getTime();
+    std::cout << timePart << ' ' << sendOrRecv << ' ' << sourceIP << ':' << sourcePort <<
+            ' ' << destIP << ':' << destPort << ' ' << type << ' ' <<
+            seqOrAck << ' ' << payloadOrWinSize << std::endl;
+}
+
 void finalPrint(){
     gettimeofday(&endTime, NULL);
     std::cout << "total data bytes received: " << totalData << std::endl;
@@ -80,8 +147,8 @@ RDPMessage establishConnection(std::string recvIP, std::string recvPort){
 
     memset(&saIn, 0, sizeof saIn);
     saIn.sin_family = AF_INET;
-    std::cout << "Setting my recv IP to " << recvIP << " and recv port to " <<
-            recvPort << std::endl;
+    // std::cout << "Setting my recv IP to " << recvIP << " and recv port to " <<
+    //         recvPort << std::endl;
     saIn.sin_addr.s_addr = inet_addr(recvIP.c_str());
     saIn.sin_port = htons(std::stoi(recvPort));
     fromlen = sizeof(saIn);
@@ -104,6 +171,8 @@ RDPMessage establishConnection(std::string recvIP, std::string recvPort){
     // }
     RDPMessage messageIn;
     messageIn.unpackCString(buffer);
+    logAction(messageIn.type(), messageIn.seqNum(), messageIn.length(),
+              messageIn.timesSent(), 'r');
     if (messageIn.type() == 100)
         synPackets ++;
     gettimeofday(&startTime, NULL);
@@ -115,13 +184,13 @@ RDPMessage establishConnection(std::string recvIP, std::string recvPort){
 }
 
 RDPMessage prepareMessageOut(RDPMessage messageOut, RDPMessage messageIn){
-    std::cout << "message in was" << std::endl;
+    // std::cout << "message in was" << std::endl;
     messageIn.toString(true);
     messageOut.setACK(true);
     messageOut.setSeqNum(messageIn.seqNum());
     int ackNum = messageIn.seqNum() + lastBytesRead;
     messageOut.setAckNum(ackNum);
-    std::cout << "Sending a reply with ACK == " << messageOut.ackNum();
+    // std::cout << "Sending a reply with ACK == " << messageOut.ackNum();
     messageOut.setSize(0);
     messageOut.setMessage("");
     // messageOut.updateLength();
@@ -141,7 +210,7 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
     memset(messageString, '\0', sizeof(messageString));
     messageOut.toString(true);
     messageOut.toCString(messageString);
-    std::cout << "Replying with " << messageString << std::endl;
+    // std::cout << "Replying with " << messageString << std::endl;
     /* create an Internet, datagram, socket using UDP */
     sendSock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (-1 == sendSock) {
@@ -155,6 +224,8 @@ void sendReply(RDPMessage messageIn, RDPMessage messageOut){
         printf("Error sending packet: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
+    logAction(messageOut.type(), messageOut.ackNum(), messageOut.size(),
+              messageOut.timesSent(), 's');
 }
 
 int inputData(){
@@ -173,6 +244,8 @@ int inputData(){
     // printf("datagram: %.*s\n", (int)recsize, buffer);
     RDPMessage messageIn;
     messageIn.unpackCString(buffer);
+    logAction(messageIn.type(), messageIn.seqNum(), messageIn.length(),
+              messageIn.timesSent(), 'r');
     inMessages.push_back(messageIn);
     return (int) recsize;
 }
@@ -187,8 +260,14 @@ void sendAck(int outAckNum, int newWinSize, int type = 100){
     messageOut.toCString(fullReply);
     int bytesSent = sendto(recvSock, fullReply, strlen(fullReply), 0,
             (struct sockaddr*)&saIn, sizeof saIn);
+    if (bytesSent < 0) {
+        printf("Error sending packet: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    logAction(messageOut.type(), messageOut.ackNum(), messageOut.size(),
+              messageOut.timesSent(), 's');
     // messageOut.setSeqNum
-    std::cout << "Replied with num bytes: " << bytesSent << std::endl;
+    // std::cout << "Replied with num bytes: " << bytesSent << std::endl;
 }
 
 bool rollOver = false;
@@ -203,8 +282,8 @@ void inputLoop(char* fullWindow, std::string filenameOut){
     while(receivedFIN == false){
         int recvSize = inputData();
         RDPMessage messageIn = inMessages.back();
-        std::cout << "Expected SEQ num " << mostRecentSeq;
-        std::cout << " Received SEQ num " << messageIn.seqNum()<< std::endl;
+        // std::cout << "Expected SEQ num " << mostRecentSeq;
+        // std::cout << " Received SEQ num " << messageIn.seqNum()<< std::endl;
         // FIN packet caught, reply with FIN
         if (messageIn.type() == 1000) {
             std::cout << "Received FIN packet" << std::endl;
@@ -218,7 +297,7 @@ void inputLoop(char* fullWindow, std::string filenameOut){
         ackPackets ++;
         if (mostRecentSeq == messageIn.seqNum())
         {
-            std::cout << "Received the next expected message " << std::endl;
+            // std::cout << "Received the next expected message " << std::endl;
             curWindowSize -= recvSize;
             sendAck(mostRecentSeq, curWindowSize);
             out << messageIn.message();
@@ -230,7 +309,7 @@ void inputLoop(char* fullWindow, std::string filenameOut){
         }
         // Case where we caught a later than expected package
         else if (mostRecentSeq < messageIn.seqNum()){
-            std::cout << "Received that's further than expected asking for" << std::endl;
+            // std::cout << "Received that's further than expected asking for" << std::endl;
             sendAck(mostRecentSeq, curWindowSize);
         }
         // Case where the SEQ num rolled over, so this is backwards
@@ -240,8 +319,8 @@ void inputLoop(char* fullWindow, std::string filenameOut){
             rollOver = false;
         }
         else {
-            std::cout << "Receiving messages earlier than expected. Asking for " <<
-                    mostRecentSeq << std::endl;
+            // std::cout << "Receiving messages earlier than expected. Asking for " <<
+            //         mostRecentSeq << std::endl;
             sendAck(mostRecentSeq, curWindowSize);
         }
         //
@@ -256,6 +335,12 @@ int main(int argc, char const *argv[])
     char fullWindow[FULL_WINDOW_SIZE];
     RDPMessage messageIn = establishConnection(argv[1], argv[2]);
     RDPMessage messageOut;
+
+    sourceIP = argv[1];
+    sourcePort = argv[2];
+    destIP = argv[1];
+    destPort = argv[2];
+
     // Wait before reply, just for testing
     std::this_thread::sleep_for(std::chrono::seconds(3));
     sendReply(messageIn, messageOut);

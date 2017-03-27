@@ -8,8 +8,8 @@ OBJS = RDPClient.o RDPServer.o
 all: a2
 
 a2: $(OBJS)
-	$(CXX) $(CXXFLAGS) -o RDPClient RDPClient.cpp RDPMessage.cpp RDPMessage.h $(LDFLAGS)
-	$(CXX) $(CXXFLAGS) -o RDPServer RDPServer.cpp RDPMessage.cpp RDPMessage.h $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o rdpc RDPClient.cpp RDPMessage.cpp RDPMessage.h $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o rdps RDPServer.cpp RDPMessage.cpp RDPMessage.h $(LDFLAGS)
 
-clean: 
-	rm -rf $(OBJS) RDPClient RDPServer
+clean:
+	rm -rf $(OBJS) rdpc rdps
